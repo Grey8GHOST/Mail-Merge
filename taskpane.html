@@ -761,8 +761,10 @@
       <p class="hint" style="margin:0 0 10px;">Click any cell to edit. Add a temporary column (e.g. Amount, Address) — changes stay in memory only and never modify your original file.</p>
       <div class="edit-table-toolbar">
         <input id="newColNameInput" placeholder="New column name…" />
-        <button class="btn-secondary" id="editTableAddColBtn">+ Add column</button>
-        <button class="btn-primary" id="editTableSaveBtn">✓ Save</button>
+        <div class="edit-table-toolbar-btns">
+          <button class="btn-secondary" id="editTableAddColBtn">+ Add column</button>
+          <button class="btn-primary" id="editTableSaveBtn">✓ Save</button>
+        </div>
       </div>
       <div class="edit-table-grid" id="editTableGrid"></div>
     </div>

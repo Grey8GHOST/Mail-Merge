@@ -1095,9 +1095,17 @@ body {
 
 .edit-table-toolbar {
   display: flex;
+  flex-direction: column;
   gap: 6px;
   margin-bottom: 10px;
-  align-items: center;
+  align-items: stretch;
+}
+.edit-table-toolbar-btns {
+  display: flex;
+  gap: 6px;
+}
+.edit-table-toolbar-btns .btn-primary {
+  flex: 1;
 }
 
 /* Column-name input inside the edit table toolbar — explicitly styled
