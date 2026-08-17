@@ -1,11 +1,11 @@
 {
   "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
-  "id": "a3a648da-9dc0-48ce-948a-ba2434afcadd",
+  "id": "b7f3d21e-4ac1-4e8b-9c7f-cd3548bfd910",
   "version": "2.6.0",
   "manifestVersion": "1.17",
   "name": {
-    "short": "Mail Merge",
-    "full": "Classic Mail Merge Engine for New Outlook"
+    "short": "Mail Merge Dev",
+    "full": "Mail Merge Engine — Dev Build"
   },
   "description": {
     "short": "Personalized bulk email directly in New Outlook.",
@@ -13,13 +13,13 @@
   },
   "developer": {
     "name": "Promethean IT",
-    "websiteUrl": "https://leighton-grey.github.io/mail-merge-addin",
-    "privacyUrl": "https://leighton-grey.github.io/mail-merge-addin/privacy.html",
-    "termsOfUseUrl": "https://leighton-grey.github.io/mail-merge-addin/terms.html"
+    "websiteUrl": "https://grey8ghost.github.io/Mail-Merge",
+    "privacyUrl": "https://grey8ghost.github.io/Mail-Merge/privacy.html",
+    "termsOfUseUrl": "https://grey8ghost.github.io/Mail-Merge/terms.html"
   },
   "icons": {
-    "color": "https://leighton-grey.github.io/mail-merge-addin/assets/icon-color.png",
-    "outline": "https://leighton-grey.github.io/mail-merge-addin/assets/icon-outline.png"
+    "color": "icon-color.png",
+    "outline": "icon-outline.png"
   },
   "accentColor": "#F58220",
   "webApplicationInfo": {
@@ -37,7 +37,7 @@
     }
   },
   "validDomains": [
-    "leighton-grey.github.io"
+    "grey8ghost.github.io"
   ],
   "extensions": [
     {
@@ -63,7 +63,7 @@
           "id": "TaskPaneRuntime",
           "type": "general",
           "code": {
-            "page": "https://leighton-grey.github.io/mail-merge-addin/taskpane.html"
+            "page": "https://grey8ghost.github.io/Mail-Merge/taskpane.html"
           },
           "lifetime": "short",
           "actions": [
@@ -89,15 +89,15 @@
                   "icons": [
                     {
                       "size": 16,
-                      "url": "https://leighton-grey.github.io/mail-merge-addin/assets/icon-16.png"
+                      "url": "https://grey8ghost.github.io/Mail-Merge/assets/icon-16.png"
                     },
                     {
                       "size": 32,
-                      "url": "https://leighton-grey.github.io/mail-merge-addin/assets/icon-32.png"
+                      "url": "https://grey8ghost.github.io/Mail-Merge/assets/icon-32.png"
                     },
                     {
                       "size": 80,
-                      "url": "https://leighton-grey.github.io/mail-merge-addin/assets/icon-80.png"
+                      "url": "https://grey8ghost.github.io/Mail-Merge/assets/icon-80.png"
                     }
                   ],
                   "controls": [
@@ -108,15 +108,15 @@
                       "icons": [
                         {
                           "size": 16,
-                          "url": "https://leighton-grey.github.io/mail-merge-addin/assets/icon-16.png"
+                          "url": "https://grey8ghost.github.io/Mail-Merge/assets/icon-16.png"
                         },
                         {
                           "size": 32,
-                          "url": "https://leighton-grey.github.io/mail-merge-addin/assets/icon-32.png"
+                          "url": "https://grey8ghost.github.io/Mail-Merge/assets/icon-32.png"
                         },
                         {
                           "size": 80,
-                          "url": "https://leighton-grey.github.io/mail-merge-addin/assets/icon-80.png"
+                          "url": "https://grey8ghost.github.io/Mail-Merge/assets/icon-80.png"
                         }
                       ],
                       "supertip": {

@@ -157,7 +157,19 @@ let previewTablePage          = 0;      // Feature 6: preview table paging
 const PREVIEW_PAGE_SIZE       = 10;     // Feature 6: rows per page
 let parsedRecipients          = [];
 let cancelRequested           = false;
-let subjectHasFocus           = false;
+let subjectHasFocus           = false;  // true while #subjectInput has keyboard focus
+
+// _subjectWasFocused: snapshot of subjectHasFocus captured on mousedown of a tag chip.
+// This is necessary because blur fires BEFORE click in the browser event order —
+// by the time the click handler runs, subjectHasFocus is already false. We snapshot it
+// during mousedown (which fires before blur) so insertTag() knows whether to target
+// the subject line or the email body.
+let _subjectWasFocused        = false;
+
+// _hintResetTimer: debounce handle for resetting the #tagsHint text after
+// the subject input loses focus. The 150 ms delay covers the mousedown→blur→click
+// sequence, so the hint doesn't flip to "body" before the click completes.
+let _hintResetTimer           = null;
 let _lastOutlookSubject       = null;   // last value read from / pushed to Outlook's native subject
 let _subjectPushTimer         = null;   // debounce timer for pushing to Outlook
 let _subjectPollTimer         = null;   // interval for polling Outlook subject
@@ -306,12 +318,39 @@ Office.onReady((info) => {
     });
 
     const subjectInput = document.getElementById("subjectInput");
-    subjectInput.addEventListener("focus", () => { subjectHasFocus = true; });
-    subjectInput.addEventListener("blur",  () => { subjectHasFocus = false; });
+    // On focus: mark that subject has focus AND immediately update the tag hint
+    // text so users know clicking a tag will target the subject line.
+    subjectInput.addEventListener("focus", () => {
+      subjectHasFocus = true;
+      clearTimeout(_hintResetTimer);  // cancel any pending reset from a previous blur
+      updateTagHint(true);
+    });
+    // On blur: mark focus as lost, then reset the hint after 150 ms.
+    // The 150 ms delay is intentional — it covers the full mousedown→blur→click
+    // sequence. If the user clicked a tag chip, the click fires within ~50-80 ms
+    // of blur, so the hint (and the snapshot in _subjectWasFocused) are still
+    // correct when insertTag() runs.
+    subjectInput.addEventListener("blur", () => {
+      subjectHasFocus = false;
+      _hintResetTimer = setTimeout(() => updateTagHint(false), 150);
+    });
 
+    // mousedown on tagBar: snapshot whether subject had focus BEFORE blur fires.
+    // We check e.target to make sure the user isn't clicking the ✕ remove button —
+    // that click should never trigger an insert.
+    document.getElementById("tagBar").addEventListener("mousedown", (e) => {
+      if (!e.target.classList.contains("tag-remove-btn")) {
+        _subjectWasFocused = subjectHasFocus;
+      }
+    });
+
+    // click on tagBar: use closest() so clicking the inner .tag-label span
+    // (or anywhere in the chip) still finds the parent [data-tag] element.
+    // Skip the click entirely if the remove button was clicked.
     document.getElementById("tagBar").addEventListener("click", (e) => {
-      const tag = e.target.dataset.tag;
-      if (tag) insertTag(tag);
+      if (e.target.classList.contains("tag-remove-btn")) return; // handled by its own listener
+      const chip = e.target.closest("[data-tag]");
+      if (chip) insertTag(chip.dataset.tag, _subjectWasFocused);
     });
 
     document.getElementById("customTagInput").addEventListener("keydown", (e) => {
@@ -340,7 +379,8 @@ Office.onReady((info) => {
     restoreLocalState();
 
     // Sync subject from Outlook's native compose field on first load,
-    // then poll every 2.5 s so edits in Outlook's field flow into the taskpane automatically.
+    // then poll every 500 ms for live-like bidirectional sync between
+    // Outlook's compose field and the taskpane subject input.
     syncSubjectFromOutlook(true);
     _subjectPollTimer = setInterval(() => syncSubjectFromOutlook(false), 500);
 
@@ -631,17 +671,60 @@ Office.onReady((info) => {
   }
 });
 
+/* ─── SWIPE-BACK / HORIZONTAL SCROLL GUARD ────────────────────
+   On macOS + Chrome, a two-finger horizontal swipe on a trackpad
+   inside an Office add-in iframe can trigger the browser's
+   back/forward navigation, navigating away from the compose window.
+
+   Fix: intercept wheel events where the horizontal delta exceeds
+   the vertical delta (i.e. a deliberate horizontal swipe), and
+   call preventDefault() so Chrome never sees it as a navigation
+   gesture. We only do this when the page itself has no horizontal
+   scroll room (scrollWidth === clientWidth), meaning the swipe
+   was never meant to scroll content anyway.
+   ─────────────────────────────────────────────────────────── */
+(function installSwipeGuard() {
+  document.addEventListener("wheel", function(e) {
+    // Only intercept clearly horizontal swipes
+    if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+    // If the element being scrolled has horizontal scroll room, let it scroll
+    let el = e.target;
+    while (el && el !== document.documentElement) {
+      if (el.scrollWidth > el.clientWidth) return;
+      el = el.parentElement;
+    }
+    // No horizontal scroll room anywhere in the chain — block the swipe
+    e.preventDefault();
+  }, { passive: false });
+})();
+
 /* ─── LOGGING ─────────────────────────────────────────────────── */
 
+/**
+ * Append a timestamped message to the full status log (#statusLog) and
+ * also update the single-line mini log strip in the sticky footer.
+ *
+ * Log levels and their colour treatment:
+ *   "info"    — muted grey-purple  — routine progress messages
+ *   "success" — green              — successful email sends
+ *   "warning" — amber              — non-fatal issues (skipped rows, etc.)
+ *   "error"   — red                — hard failures requiring attention
+ *
+ * @param {string} message - Human-readable log message
+ * @param {"info"|"success"|"warning"|"error"} [type="info"] - Log level
+ */
 function log(message, type = "info") {
   const logEl = document.getElementById("statusLog");
   const entry = document.createElement("p");
-  entry.className = `log-entry log-${type}`;
+  entry.className = `log-entry log-${type}`;   // CSS colours defined in taskpane.css
   const time = new Date().toLocaleTimeString();
   entry.textContent = `[${time}] ${message}`;
   logEl.appendChild(entry);
-  logEl.scrollTop = logEl.scrollHeight;
+  logEl.scrollTop = logEl.scrollHeight;  // auto-scroll so latest message is always visible
 
+  // Mirror the latest message in the compact footer mini log strip.
+  // The colour codes here match the CSS log-* colours but as inline
+  // styles so they work on the dark footer background.
   const mini = document.getElementById("footerLogMini");
   if (mini) {
     mini.textContent = `[${time}] ${message}`;
@@ -652,6 +735,9 @@ function log(message, type = "info") {
   }
 }
 
+/**
+ * Clear all entries from the status log and reset to the initial ready state.
+ */
 function clearLog() {
   document.getElementById("statusLog").innerHTML = "";
   log("Log cleared.", "info");
@@ -725,6 +811,8 @@ function toggleQuickMode() {
   }
 }
 
+let _quickModeParseTimer = null;
+
 function updateQuickModeCSV() {
   const raw = document.getElementById("quickEmailInput")?.value || "";
   const emails = raw.split(/[\n,;]+/).map(e => e.trim()).filter(e => e && EMAIL_REGEX.test(e));
@@ -737,8 +825,11 @@ function updateQuickModeCSV() {
   }
   csvInput.dispatchEvent(new Event("input"));
   csvInput.dispatchEvent(new Event("change"));
-  // Auto-parse so the user sees a recipient count immediately
-  if (emails.length > 0) parseAndPreview();
+  // Debounce parseAndPreview — don't re-parse on every keypress
+  clearTimeout(_quickModeParseTimer);
+  if (emails.length > 0) {
+    _quickModeParseTimer = setTimeout(() => parseAndPreview(), 350);
+  }
 }
 
 /* ─── SYNC RECIPIENTS FROM OUTLOOK'S TO FIELD ───────────────────
@@ -780,42 +871,78 @@ function syncRecipientsFromOutlook() {
   }
 }
 
+/**
+ * Wire up the tab navigation bar.
+ *
+ * Each .tab-btn has a data-tab attribute matching the id of a .tab-pane
+ * (e.g. data-tab="compose" → #tab-compose). On click:
+ *   1. Remove .active from all buttons, set aria-selected="false"
+ *   2. Hide all .tab-pane elements
+ *   3. Activate the clicked button and reveal the matching pane
+ *   4. If the user switched to the Compose tab, trigger a subject sync
+ *      so the taskpane subject reflects any changes made in Outlook's
+ *      native compose area since the last poll.
+ */
 function initTabs() {
   document.querySelectorAll(".tab-bar .tab-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       const target = btn.dataset.tab;
+      // Deactivate all tab buttons
       document.querySelectorAll(".tab-bar .tab-btn").forEach(b => {
         b.classList.remove("active");
         b.setAttribute("aria-selected", "false");
       });
+      // Hide all tab panels
       document.querySelectorAll(".tab-pane").forEach(p => p.classList.add("hidden"));
+      // Activate the clicked button and show its panel
       btn.classList.add("active");
       btn.setAttribute("aria-selected", "true");
       document.getElementById(`tab-${target}`).classList.remove("hidden");
-      // When switching to Compose, pull any changes the user typed in Outlook's subject field
+      // Pull any changes the user typed directly in Outlook's subject field
       if (target === "compose") syncSubjectFromOutlook(false);
     });
   });
 }
 
+/**
+ * Wire up all .accordion-hdr buttons.
+ *
+ * Each header has a data-accordion attribute that matches the ID suffix of
+ * its body element (e.g. data-accordion="optout" → #accordion-optout).
+ * On click, toggle the body's .hidden class and the header's .open class
+ * (the .open class rotates the › chevron via CSS).
+ */
 function initAccordions() {
   document.querySelectorAll(".accordion-hdr").forEach(hdr => {
     hdr.addEventListener("click", () => {
       const body = document.getElementById(`accordion-${hdr.dataset.accordion}`);
       if (!body) return;
       const isOpen = !body.classList.contains("hidden");
-      body.classList.toggle("hidden", isOpen);
-      hdr.classList.toggle("open", !isOpen);
+      body.classList.toggle("hidden", isOpen);   // close if open, open if closed
+      hdr.classList.toggle("open", !isOpen);      // sync the chevron rotation
     });
   });
 }
 
 /* ─── LOCAL STATE PERSISTENCE ─────────────────────────────────── */
 
+/**
+ * Safely read a value from localStorage, returning defaultVal on any error
+ * (quota exceeded, storage restricted by the Office webview, JSON parse fail).
+ *
+ * If defaultVal is a non-null object, the stored string is JSON-parsed so
+ * callers receive an object back rather than a raw string.
+ *
+ * @param {string} key         - localStorage key
+ * @param {*}      [defaultVal] - Value to return when key is absent or errors
+ * @returns {*} Stored value (or defaultVal)
+ */
 function lsGet(key, defaultVal) {
   try {
     const raw = localStorage.getItem(key);
     if (raw === null) return defaultVal !== undefined ? defaultVal : null;
+    // Auto-parse JSON when the caller passed a non-null object as the default —
+    // this signals that the stored value should be an object, not a string.
     if (defaultVal !== null && typeof defaultVal === "object") {
       try { return JSON.parse(raw); } catch { return defaultVal; }
     }
@@ -823,14 +950,36 @@ function lsGet(key, defaultVal) {
   } catch { return defaultVal !== undefined ? defaultVal : null; }
 }
 
+/**
+ * Safely write a value to localStorage, silently swallowing quota or
+ * webview-restriction errors so the app continues to work read-only.
+ *
+ * @param {string} key   - localStorage key
+ * @param {string} value - String value to store (stringify objects before calling)
+ */
 function lsSet(key, value) {
   try { localStorage.setItem(key, value); } catch { /* quota exceeded or restricted webview */ }
 }
 
+/**
+ * Safely delete a key from localStorage.
+ * @param {string} key
+ */
 function lsRemove(key) {
   try { localStorage.removeItem(key); } catch { /* ignore */ }
 }
 
+/**
+ * Restore persisted state from the previous session.
+ * Called once during Office.onReady() after UI elements are set up.
+ *
+ * Restores:
+ *   - Subject line text (LS_KEY_SUBJECT)
+ *   - CSV recipient data (LS_KEY_CSV) — triggers parseAndPreview() to rebuild the table
+ *   - Custom tag chips (LS_KEY_TAGS)
+ *   - Saved email templates (rendered into the template list)
+ *   - Greeting format / fallback settings (LS_KEY_GREETING)
+ */
 function restoreLocalState() {
   const savedSubject = lsGet(LS_KEY_SUBJECT);
   if (savedSubject) {
@@ -842,14 +991,19 @@ function restoreLocalState() {
   if (savedCsv) {
     document.getElementById("csvInput").value = savedCsv;
     log("Restored CSV data from saved session.", "info");
-    parseAndPreview();
+    parseAndPreview();  // rebuild recipient table from the restored CSV string
   }
 
+  // Restore user-added custom tag chips (non-default, non-smart tags).
+  // DEFAULT_TAGS are already rendered in the HTML; duplicates are silently ignored by addTagToBar().
   const savedTags = JSON.parse(lsGet(LS_KEY_TAGS) || "[]");
   savedTags.forEach(tag => addTagToBar(tag));
 
-  renderTemplateList();
+  renderTemplateList();  // rebuild the saved-template picker in the Compose tab
 
+  // Restore greeting format and fallback text.
+  // The stored value may be a JSON string or already-parsed object depending on
+  // which version of lsGet was used when it was saved — handle both.
   const savedGreeting = lsGet(LS_KEY_GREETING, null);
   if (savedGreeting) {
     try {
@@ -857,15 +1011,23 @@ function restoreLocalState() {
       greetingConfig = g;
       document.getElementById("greetingFormat").value   = g.format   || "dear_sal_last";
       document.getElementById("greetingFallback").value = g.fallback || "Dear Valued Customer";
-    } catch { /* ignore malformed */ }
+    } catch { /* ignore malformed stored data */ }
   }
 }
 
+/**
+ * Persist the current set of custom tag chips to localStorage so they
+ * survive page reloads. Filters out DEFAULT_TAGS (built-in chips that are
+ * already in the HTML and don't need to be stored separately).
+ *
+ * Called by addTagToBar() (when a new chip is added) and by removeTagFromBar()
+ * (when a chip is removed).
+ */
 function saveCustomTagsToStorage() {
   const tagEls = document.querySelectorAll("#tagBar [data-tag]");
   const tags = Array.from(tagEls)
     .map(el => el.dataset.tag)
-    .filter(t => !DEFAULT_TAGS.includes(t));
+    .filter(t => !DEFAULT_TAGS.includes(t));  // exclude built-in default chips
   lsSet(LS_KEY_TAGS, JSON.stringify(tags));
 }
 
@@ -1514,8 +1676,23 @@ async function handleRetryFailed() {
 
 /* ─── TAG INSERTION ────────────────────────────────────────────── */
 
-function insertTag(tag) {
-  if (subjectHasFocus) {
+/**
+ * Insert a tag placeholder into either the subject line or the email body.
+ *
+ * @param {string} tag          - The placeholder string, e.g. "{{first_name}}"
+ * @param {boolean} forceSubject - When true, insert into the subject input even
+ *                                 if subjectHasFocus is currently false. This is
+ *                                 needed because blur fires before click in the
+ *                                 browser event order — by the time the click
+ *                                 handler runs, subjectHasFocus is already false.
+ *                                 The caller passes _subjectWasFocused (captured
+ *                                 on mousedown, before blur) as this argument.
+ */
+function insertTag(tag, forceSubject = false) {
+  if (forceSubject || subjectHasFocus) {
+    // ── Insert into the subject line ──────────────────────────────
+    // Read the current cursor position, splice the tag in, then
+    // move the cursor to just after the inserted text.
     const input = document.getElementById("subjectInput");
     const start = input.selectionStart;
     const end   = input.selectionEnd;
@@ -1523,9 +1700,22 @@ function insertTag(tag) {
     input.value = value.slice(0, start) + tag + value.slice(end);
     const newCursor = start + tag.length;
     input.setSelectionRange(newCursor, newCursor);
+
+    // Fire an "input" event so the existing input listener picks up the
+    // change: it calls lsSet() to persist the new value and starts the
+    // 400 ms debounce timer that pushes the update to Outlook's native
+    // subject field via pushSubjectToOutlook().
+    input.dispatchEvent(new Event("input"));
+
+    // Restore focus so the cursor stays in the subject field — the user
+    // can immediately click another tag to add more tokens.
     input.focus();
     log(`Inserted tag into subject: ${tag}`, "success");
   } else {
+    // ── Insert into the email body via Office.js ──────────────────
+    // setSelectedDataAsync inserts at the current cursor position in
+    // the Outlook compose body. On macOS, only Text coercion is
+    // supported; HTML works on Windows.
     const isMac = Office.context.platform === Office.PlatformType.Mac;
     const coercionType = isMac ? Office.CoercionType.Text : Office.CoercionType.Html;
     Office.context.mailbox.item.body.setSelectedDataAsync(
@@ -1542,26 +1732,94 @@ function insertTag(tag) {
   }
 }
 
+/**
+ * Read the value from #customTagInput, normalise it into a {{tag}} format,
+ * add it to the tag bar as a custom chip, and immediately insert it into
+ * the currently focused field (body or subject line).
+ *
+ * Normalisation rules: lowercase, spaces replaced with underscores.
+ * Example: "First Name" → {{first_name}}
+ *
+ * Called by the "Add tag" button click handler and the Enter keydown
+ * listener on #customTagInput.
+ */
 function addCustomTag() {
   const input = document.getElementById("customTagInput");
   const name  = input.value.trim();
   if (!name) return;
+  // Normalise: lowercase + underscores so the tag matches CSV column name conventions
   const normalized = name.toLowerCase().replace(/\s+/g, "_");
   const tag = `{{${normalized}}}`;
-  addTagToBar(tag);
-  insertTag(tag);
-  input.value = "";
+  addTagToBar(tag);      // add the chip to the bar (no-op if already present)
+  insertTag(tag);        // insert immediately into the focused field
+  input.value = "";      // clear the input for the next custom tag
 }
 
+/**
+ * Add a tag chip to #tagBar if it isn't already there.
+ *
+ * Each chip structure:
+ *   <span class="tag [tag-smart|tag-custom]" data-tag="{{field}}">
+ *     <span class="tag-label">{{field}}</span>
+ *     <!-- only for non-default, non-smart chips: -->
+ *     <button class="tag-remove-btn" aria-label="Remove {{field}} tag">✕</button>
+ *   </span>
+ *
+ * The .tag-label span separates the display text from the ✕ button so
+ * that e.target.closest("[data-tag]") in the click handler still resolves
+ * to the chip even when the user clicks the label text directly.
+ *
+ * Remove buttons are added only to custom (user-added / CSV-column) chips.
+ * Default chips (those in DEFAULT_TAGS[]) and smart chips (type === "smart")
+ * are permanent and do not get a remove button.
+ *
+ * @param {string} tag   - The placeholder string, e.g. "{{first_name}}"
+ * @param {string} [type] - "smart" for computed tags like {{today}} / {{greeting_line}}
+ */
 function addTagToBar(tag, type) {
+  // Bail out early if this tag chip already exists (prevents duplicates
+  // when restoring from localStorage or re-parsing the same CSV).
   const existing = document.querySelector(`#tagBar [data-tag="${CSS.escape(tag)}"]`);
   if (existing) return;
-  const bar    = document.getElementById("tagBar");
-  const chip   = document.createElement("span");
+
+  const bar  = document.getElementById("tagBar");
+  const chip = document.createElement("span");
   chip.className   = type === "smart" ? "tag tag-smart" : "tag tag-custom";
   chip.dataset.tag = tag;
-  chip.textContent = tag;
-  // Feature 14: keyboard accessibility
+
+  // Label span — holds the visible tag text (e.g. "{{company}}").
+  // Using a child span (rather than setting textContent directly on the chip)
+  // means clicks on the label still bubble up to the chip's [data-tag] element,
+  // which closest() in the click handler can find.
+  const labelSpan = document.createElement("span");
+  labelSpan.className   = "tag-label";
+  labelSpan.textContent = tag;
+  chip.appendChild(labelSpan);
+
+  // Remove button — only for non-default, non-smart custom chips.
+  // DEFAULT_TAGS is the array of built-in placeholder names defined near
+  // the top of this file. Smart chips (type === "smart") are also permanent.
+  const isDefault = DEFAULT_TAGS.includes(tag);
+  const isSmart   = type === "smart";
+  if (!isDefault && !isSmart) {
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "tag-remove-btn";
+    removeBtn.textContent = "✕";
+    removeBtn.setAttribute("aria-label", `Remove ${tag} tag`);
+    removeBtn.title = `Remove ${tag}`;
+    // stopPropagation prevents the remove click from also triggering
+    // the chip's insert handler (which is registered on the tagBar div).
+    removeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      removeTagFromBar(tag);
+    });
+    // Also block mousedown propagation so _subjectWasFocused isn't
+    // snapshotted incorrectly when the user clicks the remove button.
+    removeBtn.addEventListener("mousedown", (e) => e.stopPropagation());
+    chip.appendChild(removeBtn);
+  }
+
+  // Keyboard accessibility: Enter / Space triggers a click on the chip.
   chip.setAttribute("tabindex", "0");
   chip.setAttribute("role", "button");
   chip.setAttribute("aria-label", "Insert " + tag);
@@ -1571,8 +1829,42 @@ function addTagToBar(tag, type) {
       chip.click();
     }
   });
+
   bar.appendChild(chip);
+  // Persist non-smart custom tags to localStorage so they survive page reloads.
   if (type !== "smart") saveCustomTagsToStorage();
+}
+
+/**
+ * Remove a custom tag chip from #tagBar and update localStorage.
+ * Only call this for user-added or CSV-column chips — default and smart
+ * chips should never be removed.
+ *
+ * @param {string} tag - The placeholder string to remove, e.g. "{{city}}"
+ */
+function removeTagFromBar(tag) {
+  const chip = document.querySelector(`#tagBar [data-tag="${CSS.escape(tag)}"]`);
+  if (chip) {
+    chip.remove();
+    saveCustomTagsToStorage();  // update persisted custom tags list
+    log(`Removed custom tag: ${tag}`, "info");
+  }
+}
+
+/**
+ * Update the #tagsHint hint text to tell the user whether clicking a
+ * tag chip will insert into the subject line or the email body.
+ * Called on subjectInput focus (targetIsSubject=true) and on blur
+ * (targetIsSubject=false, after a 150 ms delay via _hintResetTimer).
+ *
+ * @param {boolean} targetIsSubject - true when subject input is focused
+ */
+function updateTagHint(targetIsSubject) {
+  const el = document.getElementById("tagsHint");
+  if (!el) return;
+  el.innerHTML = targetIsSubject
+    ? "👆 Click any tag to insert into the <strong>subject line</strong>"
+    : "👆 Click any tag to insert it into your <strong>email body</strong>";
 }
 
 /* ─── FILE UPLOAD: CSV + EXCEL ─────────────────────────────────── */
@@ -2850,7 +3142,26 @@ function getJitterMs() {
   return (lo + Math.random() * (hi - lo)) * 1000;
 }
 
-// L1: non-recursive retry — eliminates unbounded recursion under persistent 429s
+/**
+ * Send a Microsoft Graph $batch request with automatic retry on rate-limit (429) responses.
+ *
+ * Why non-recursive: earlier versions used tail-call recursion which caused
+ * "maximum call stack exceeded" errors when a persistent 429 produced many
+ * retry rounds. This iterative version uses a for-loop with a pending queue
+ * to avoid that, while still retrying only the throttled sub-set.
+ *
+ * Retry logic:
+ *   - If the top-level batch response is 429, wait Retry-After seconds and
+ *     retry all pending requests (the whole batch was rejected by the gateway).
+ *   - If individual requests inside the batch are 429, collect them and retry
+ *     only those on the next loop iteration.
+ *   - After MAX_RETRIES exhausted attempts, mark remaining items as failed
+ *     rather than looping forever.
+ *
+ * @param {Object[]} requests - Graph batch request objects (id, method, url, headers, body)
+ * @param {string}   token    - OAuth2 Bearer token for the Authorization header
+ * @returns {Promise<{responses: Object[]}>} - Combined responses for all request IDs
+ */
 async function sendBatchWithRetry(requests, token) {
   let pending = requests.slice();
   const results = [];
@@ -3504,6 +3815,26 @@ function setMergeRunning(running) {
 
 /* ─── MAIN MERGE RUNNER ────────────────────────────────────────── */
 
+/**
+ * Orchestrate the full mail merge send run.
+ *
+ * High-level flow:
+ *   1. Guard against re-entrant clicks (mergeInProgress flag)
+ *   2. Parse and validate the recipient list
+ *   3. Acquire an OAuth2 token via Office.js SSO
+ *   4. Show a pre-send confirmation modal with a human-readable summary
+ *   5. Dispatch emails in Graph $batch chunks of up to BATCH_SIZE (20)
+ *   6. After each batch, apply the user-configured batch delay
+ *   7. Respect the hourly rate limit and daily cap if set
+ *   8. Show the retry button + download report on completion
+ *
+ * All async waits use await so the UI stays responsive throughout.
+ * The cancelRequested flag (set by handleStop()) is checked between
+ * batches so the user can abort without killing the current batch.
+ *
+ * @async
+ * @returns {Promise<void>}
+ */
 async function handleMergeClick() {
   // BUG 1: double-send guard — prevents concurrent merges from multiple clicks during async modals
   if (mergeInProgress) {
