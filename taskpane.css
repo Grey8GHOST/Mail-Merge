@@ -293,6 +293,18 @@ body {
   font-size: 11.5px;
   color: var(--text-muted);  /* used for things like "(1.5 s between batches)" next to a label */
 }
+.csv-optional-toggle {
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 10px;
+  white-space: nowrap;
+  user-select: none;
+}
+.csv-optional-toggle:hover { text-decoration: underline; }
+.csv-optional-list {
+  display: inline;
+}
+.csv-optional-list.hidden { display: none; }
 
 /* ─── Inputs ──────────────────────────────────────────────────────
    .input        — full-width text / number input

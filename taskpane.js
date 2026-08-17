@@ -243,6 +243,22 @@ Office.onReady((info) => {
     document.getElementById("mergeBtn").addEventListener("click", handleMergeClick);
     document.getElementById("stopBtn").addEventListener("click", handleStop);
     document.getElementById("previewBtn").addEventListener("click", parseAndPreview);
+
+    // Optional columns dropdown toggle
+    const csvOptionalToggle = document.getElementById("csvOptionalToggle");
+    const csvOptionalList   = document.getElementById("csvOptionalList");
+    if (csvOptionalToggle && csvOptionalList) {
+      function toggleCsvOptional() {
+        const open = !csvOptionalList.classList.contains("hidden");
+        csvOptionalList.classList.toggle("hidden", open);
+        csvOptionalToggle.textContent = open ? "Optional columns ▾" : "Optional columns ▴";
+        csvOptionalToggle.setAttribute("aria-expanded", String(!open));
+      }
+      csvOptionalToggle.addEventListener("click", toggleCsvOptional);
+      csvOptionalToggle.addEventListener("keydown", e => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleCsvOptional(); }
+      });
+    }
     document.getElementById("clearLogBtn").addEventListener("click", clearLog);
     document.getElementById("addCustomTagBtn").addEventListener("click", addCustomTag);
     document.getElementById("confirmSendBtn").addEventListener("click", confirmSend);
@@ -1943,6 +1959,16 @@ function removeTagFromBar(tag) {
 }
 
 /**
+ * Remove all CSV-derived custom tag chips (tag-custom class) from the bar
+ * and clear them from localStorage. Called when a new CSV is loaded so stale
+ * column tags from the previous file don't linger.
+ */
+function clearCsvTags() {
+  document.querySelectorAll("#tagBar .tag-custom").forEach(chip => chip.remove());
+  lsSet(LS_KEY_TAGS, JSON.stringify([]));
+}
+
+/**
  * Update the #tagsHint hint text to tell the user whether clicking a
  * tag chip will insert into the subject line or the email body.
  * Called on subjectInput focus (targetIsSubject=true) and on blur
@@ -2502,6 +2528,9 @@ function parseAndPreview() {
     log(`Warning: ${dupes.length} duplicate email address${dupes.length !== 1 ? "es" : ""} found — ` +
         `${dupeList}. Enable "Remove duplicates" in send options or edit the file.`, "warning");
   }
+
+  // Clear tags from any previous CSV before adding the new file's columns
+  clearCsvTags();
 
   headers.forEach(h => {
     const tag = `{{${h}}}`;
@@ -5386,7 +5415,7 @@ function renderEditTable() {
   grid.querySelectorAll(".edit-col-header-input").forEach(function(input) {
     input.addEventListener("change", function() {
       const col = parseInt(this.dataset.col, 10);
-      const trimmed = this.value.trim();
+      const trimmed = this.value.trim().toLowerCase();
       editTableHeaders[col] = trimmed || editTableHeaders[col];
       this.value = editTableHeaders[col];
     });
@@ -5414,7 +5443,7 @@ function flushEditTableInputs() {
   const grid = document.getElementById("editTableGrid");
   grid.querySelectorAll(".edit-col-header-input").forEach(function(input) {
     const col = parseInt(input.dataset.col, 10);
-    const trimmed = input.value.trim();
+    const trimmed = input.value.trim().toLowerCase();
     if (trimmed) editTableHeaders[col] = trimmed;
   });
   grid.querySelectorAll(".edit-cell-input").forEach(function(input) {
@@ -5424,7 +5453,7 @@ function flushEditTableInputs() {
 
 function editTableAddColumn() {
   const input = document.getElementById("newColNameInput");
-  const name  = (input ? input.value.trim() : "");
+  const name  = (input ? input.value.trim().toLowerCase() : "");
   if (!name) {
     log("Enter a column name in the box next to '+ Add column'.", "warning");
     if (input) input.focus();

@@ -130,7 +130,14 @@
         <div class="csv-actions">
           <button class="btn-secondary" id="previewBtn">Preview</button>
           <button class="btn-secondary" id="mapFieldsBtn" style="display:none;">⇄ Map fields</button>
-          <span class="hint" style="flex:1;margin:0;font-size:10px">Required column: <code>email</code>. Optional: <code>cc</code> <code>bcc</code> <code>display_name</code> <code>first_name</code> <code>last_name</code> <code>attachment</code> <code>skip_if</code> <code>send_at</code>. Comma, semicolon, tab, or pasted Excel all work.</span>
+          <span class="hint csv-col-hint" style="flex:1;margin:0;font-size:10px;">
+            Required: <code>email</code> <code>first_name</code> <code>last_name</code>.
+            <span class="csv-optional-toggle" id="csvOptionalToggle" role="button" tabindex="0" aria-expanded="false">Optional columns ▾</span>
+            <span class="csv-optional-list hidden" id="csvOptionalList">
+              <code>cc</code> <code>bcc</code> <code>display_name</code> <code>attachment</code> <code>skip_if</code> <code>send_at</code>
+            </span>
+            <br><span style="color:var(--text-muted)">Comma, semicolon, tab, or pasted Excel all work.</span>
+          </span>
         </div>
       </div>
 
