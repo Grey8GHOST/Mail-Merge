@@ -54,22 +54,41 @@
         <a id="dismissGettingStarted" href="#" style="font-size:11px;color:var(--text-muted);">Dismiss</a>
       </div>
 
+      <!-- Recipients source switcher -->
+      <div class="section" style="padding-bottom:6px;">
+        <div class="csv-upload-row" style="flex-wrap:wrap;gap:6px;">
+          <button class="btn-secondary" id="quickModeBtn">📧 Quick: type emails</button>
+          <button class="btn-secondary" id="syncRecipientsBtn" title="Import addresses from Outlook's To field into the recipient list">📥 Import from To field</button>
+          <button class="btn-secondary" id="importContactsBtn">👤 From Contacts</button>
+          <span id="recipientCount" class="count-badge" style="margin-left:auto;"></span>
+        </div>
+      </div>
+
+      <!-- Quick email entry mode (hidden by default) -->
+      <div id="quickSection" class="section hidden">
+        <label class="label">Type or paste email addresses</label>
+        <textarea id="quickEmailInput" class="csv-area" style="height:90px;"
+          placeholder="john@example.com&#10;jane@example.com&#10;bob@example.com"></textarea>
+        <p class="hint">One email per line — or paste a comma/semicolon separated list. The add-in converts them automatically.</p>
+      </div>
+
       <!-- CSV section -->
-      <div class="section">
+      <div id="csvSection" class="section">
         <div class="csv-upload-row">
           <button class="btn-secondary" id="uploadCsvBtn">📂 Load file</button>
           <input type="file" id="csvFileInput" accept=".csv,.xlsx,.xls,text/csv" class="hidden" />
-          <button class="btn-secondary" id="importContactsBtn">👤 From Contacts</button>
-          <span class="hint-inline">or paste CSV below</span>
-          <a id="downloadSampleCsv" href="#" style="font-size:11px;color:var(--accent,#534AB7);text-decoration:none;margin-left:8px;" title="Download a sample CSV file">&#11015; Sample CSV</a>
-          <span id="recipientCount" class="count-badge"></span>
+          <a id="downloadSampleCsv" href="#" style="font-size:11px;color:var(--accent,#534AB7);text-decoration:none;margin-left:4px;" title="Download a sample CSV file">&#11015; Sample</a>
         </div>
-        <textarea id="csvInput" class="csv-area"
-          placeholder="email,first_name,last_name&#10;john@example.com,John,Smith"></textarea>
+        <!-- Drag-and-drop zone wraps the textarea -->
+        <div id="csvDropZone" class="csv-drop-zone">
+          <textarea id="csvInput" class="csv-area"
+            placeholder="email,first_name,last_name&#10;john@example.com,John,Smith&#10;&#10;💡 Drag a CSV or Excel file here, or paste a copied Excel table — it converts automatically."></textarea>
+          <div class="csv-drop-hint">Drop CSV or Excel file here</div>
+        </div>
         <div class="csv-actions">
           <button class="btn-secondary" id="previewBtn">Preview</button>
           <button class="btn-secondary" id="mapFieldsBtn" style="display:none;">⇄ Map fields</button>
-          <span class="hint" style="flex:1;margin:0;font-size:10px">Headers required: <code>email</code>. Optional: <code>cc</code> <code>bcc</code> <code>attachment</code> <code>display_name</code> <code>salutation</code> <code>first_name</code> <code>last_name</code> <code>gender</code> <code>skip_if</code> <code>send_at</code>. Auto-detects comma, semicolon, or tab delimiters.</span>
+          <span class="hint" style="flex:1;margin:0;font-size:10px">Headers required: <code>email</code>. Optional: <code>cc</code> <code>bcc</code> <code>attachment</code> <code>display_name</code> <code>first_name</code> <code>last_name</code> <code>skip_if</code> <code>send_at</code>. Auto-detects comma, semicolon, tab, or pasted Excel tables.</span>
         </div>
       </div>
 
@@ -149,10 +168,15 @@
     <div id="tab-compose" class="tab-pane hidden">
 
       <div class="section">
-        <label class="label">Subject line</label>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;">
+          <label class="label" style="margin:0;">Subject line</label>
+          <button class="btn-sm" id="syncSubjectBtn" title="Read subject from Outlook's compose window" style="font-size:10.5px;">↻ Read from email</button>
+        </div>
         <input type="text" id="subjectInput" class="input"
           placeholder="Hi {{first_name}}, update from {{company}}" />
-        <p class="hint" style="margin-top:4px;">Use <code>{{first_name}}</code> or any <code>{{column_name}}</code> from your CSV to personalise each email.</p>
+        <p class="hint" style="margin-top:6px;">
+          💡 Type your subject in Outlook's <strong>Add a subject</strong> field and it will appear here automatically — or type it here and it updates there. Use <code>{{first_name}}</code> or any <code>{{column_name}}</code> to personalise each email.
+        </p>
         <details class="hint-advanced">
           <summary class="hint-advanced-toggle">Advanced tokens &amp; filters</summary>
           <div class="hint hint-advanced-body">
@@ -335,7 +359,7 @@
             </label>
             <div id="customHeadersRow" class="hidden schedule-row">
               <textarea id="customHeadersInput" class="csv-area" style="height:52px;"
-                placeholder="X-Campaign: june-newsletter&#10;X-Mailer: PrometheanIT"></textarea>
+                placeholder="X-Campaign: june-newsletter&#10;X-Mailer: MailMerge"></textarea>
               <p class="hint">One header per line: <code>Name: Value</code>. Use <code>X-</code> prefix.</p>
             </div>
 
@@ -410,7 +434,6 @@
           <span class="about-sep">·</span>
           <a href="https://leighton-grey.github.io/mail-merge-addin/terms.html" target="_blank" class="about-link">Terms</a>
         </div>
-        <div class="about-developer">Developed by <strong>Promethean IT</strong></div>
       </div>
 
     </div><!-- /tab-options -->
@@ -430,12 +453,17 @@
       <span id="progressLabel" class="progress-label">0%</span>
     </div>
 
+    <!-- Step 1: Test send (prominent) -->
+    <div class="footer-step1-row">
+      <span class="step1-label">Step 1 — Test first</span>
+      <select id="testRowSelect" title="Row to use for test send" class="step1-row-select">
+        <option value="0">Row 1</option>
+      </select>
+      <button id="testSendBtn" class="btn-step1">📨 Send test to myself</button>
+    </div>
+
     <!-- Action buttons row -->
     <div class="merge-actions">
-      <select id="testRowSelect" title="Row to use for test send" style="font-size:11px;padding:2px 4px;max-width:130px;border:1px solid #c8c6c4;border-radius:3px;background:#faf9f8;color:#323130;font-family:inherit;">
-        <option value="0">Row 1 (default)</option>
-      </select>
-      <button id="testSendBtn" class="btn-secondary">&#128232; Test</button>
       <button id="previewAllBtn" class="btn-preview">&#128065; Preview</button>
       <button id="simulateBtn" class="btn-secondary" title="Run merge without sending — download per-recipient preview as CSV">Simulate</button>
       <button id="saveDraftsBtn" class="btn-secondary">📝 Drafts</button>

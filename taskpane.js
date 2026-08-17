@@ -1,7 +1,23 @@
-/* Mail Merge Engine v2.5.0
+/* Mail Merge Engine v2.6.0
  * Auth: Office.js SSO -> Microsoft Graph API
  * Batching: 20 requests per Graph $batch call (reduced dynamically when attachment present)
  * Privacy: Subject + CSV cached in browser localStorage only. Nothing stored server-side.
+ *
+ * v2.6.0 — 7 UX features for non-technical users:
+ *   1. Quick email entry mode — toggle replaces CSV area with a simple one-per-line email textarea;
+ *      add-in converts to internal CSV invisibly, shows recipient count in real time
+ *   2. Import from Outlook To field — button reads native compose To addresses into the recipient
+ *      list and clears Outlook's To field so the merge engine can populate it per-recipient
+ *   3. Smart paste detection — paste handler detects tab-separated content (copied from Excel /
+ *      Google Sheets) and auto-converts tabs→commas before inserting into CSV textarea
+ *   4. Drag-and-drop CSV/Excel files — drop zone overlay on the CSV textarea; dropped files are
+ *      processed identically to the file picker (supports .csv, .xlsx, .xls)
+ *   5. Prominent Step 1 test row — "Send test to myself" extracted from action buttons into its
+ *      own visually distinct row (brand orange pill, "Step 1 — Test first" label) above the footer
+ *   6. Plain-English pre-send summary — confirmation modal now shows a human-readable card:
+ *      recipient count, estimated time, and first email preview (To address + personalised subject)
+ *   7. accentColor updated to brand orange #F58220 in manifest; manifest icons changed from
+ *      external URLs to bundled PNGs inside the zip to fix M365 Admin Center upload validation
  *
  * v2.4.0 — 6 bug fixes (merge complete timer guard, cancel vs done, bare localStorage,
  *   failedRecipients cleared on reload, mergeInProgress user message, broadcast re-entrancy);
@@ -142,6 +158,9 @@ const PREVIEW_PAGE_SIZE       = 10;     // Feature 6: rows per page
 let parsedRecipients          = [];
 let cancelRequested           = false;
 let subjectHasFocus           = false;
+let _lastOutlookSubject       = null;   // last value read from / pushed to Outlook's native subject
+let _subjectPushTimer         = null;   // debounce timer for pushing to Outlook
+let _subjectPollTimer         = null;   // interval for polling Outlook subject
 let sharedAttachments         = [];   // array of { name, contentType, contentBytes, sizeBytes }
 let perRecipientFiles         = new Map();
 let inlineImages              = new Map(); // filename.toLowerCase() → { name, contentType, contentBytes, sizeBytes }
@@ -300,8 +319,18 @@ Office.onReady((info) => {
     });
 
     document.getElementById("subjectInput").addEventListener("input", () => {
-      lsSet(LS_KEY_SUBJECT, document.getElementById("subjectInput").value);
+      const val = document.getElementById("subjectInput").value;
+      lsSet(LS_KEY_SUBJECT, val);
+      // Push to Outlook's native subject field (debounced 400 ms)
+      clearTimeout(_subjectPushTimer);
+      _subjectPushTimer = setTimeout(() => pushSubjectToOutlook(val), 400);
     });
+
+    // Sync button: pull current Outlook subject into taskpane on demand
+    const syncSubjectBtn = document.getElementById("syncSubjectBtn");
+    if (syncSubjectBtn) {
+      syncSubjectBtn.addEventListener("click", () => syncSubjectFromOutlook(true));
+    }
 
     const _csvInputEl = document.getElementById("csvInput");
     const _saveCsv = () => lsSet(LS_KEY_CSV, _csvInputEl.value);
@@ -309,6 +338,11 @@ Office.onReady((info) => {
     _csvInputEl.addEventListener("change", _saveCsv);
 
     restoreLocalState();
+
+    // Sync subject from Outlook's native compose field on first load,
+    // then poll every 2.5 s so edits in Outlook's field flow into the taskpane automatically.
+    syncSubjectFromOutlook(true);
+    _subjectPollTimer = setInterval(() => syncSubjectFromOutlook(false), 500);
 
     initTabs();
     initAccordions();
@@ -491,6 +525,70 @@ Office.onReady((info) => {
       }
     });
 
+    // ── Smart paste detection ──────────────────────────────────────
+    // When a user pastes tab-separated content (Excel/Sheets copy),
+    // automatically convert it to CSV so they don't need to save as .csv first.
+    document.getElementById("csvInput")?.addEventListener("paste", (e) => {
+      const raw = (e.clipboardData || window.clipboardData)?.getData("text");
+      if (!raw) return;
+      const lines = raw.split(/\r?\n/);
+      // Tab-separated if the majority of lines contain tabs
+      const tabLines = lines.filter(l => l.includes("\t")).length;
+      if (tabLines < Math.max(1, lines.length * 0.5)) return; // not tab-separated
+      e.preventDefault();
+      // Convert: tabs → commas, quote fields that contain commas
+      const csv = lines.map(line =>
+        line.split("\t").map(cell => {
+          if (cell.includes(",") || cell.includes('"') || cell.includes("\n")) {
+            return '"' + cell.replace(/"/g, '""') + '"';
+          }
+          return cell;
+        }).join(",")
+      ).join("\n");
+      const ta = document.getElementById("csvInput");
+      const start = ta.selectionStart, end = ta.selectionEnd;
+      ta.value = ta.value.slice(0, start) + csv + ta.value.slice(end);
+      ta.selectionStart = ta.selectionEnd = start + csv.length;
+      ta.dispatchEvent(new Event("input"));
+      ta.dispatchEvent(new Event("change"));
+      log("Detected Excel/Sheets table paste — converted to CSV automatically.", "info");
+    });
+
+    // ── Drag-and-drop CSV / Excel files ───────────────────────────
+    const csvDropZone = document.getElementById("csvDropZone");
+    if (csvDropZone) {
+      csvDropZone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        csvDropZone.classList.add("drag-over");
+      });
+      csvDropZone.addEventListener("dragleave", () => {
+        csvDropZone.classList.remove("drag-over");
+      });
+      csvDropZone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        csvDropZone.classList.remove("drag-over");
+        const file = e.dataTransfer?.files?.[0];
+        if (!file) return;
+        // Reuse the existing file upload handler by injecting the file into csvFileInput
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        const fi = document.getElementById("csvFileInput");
+        fi.files = dt.files;
+        fi.dispatchEvent(new Event("change"));
+      });
+    }
+
+    // ── Quick email entry mode toggle ─────────────────────────────
+    document.getElementById("quickModeBtn")?.addEventListener("click", toggleQuickMode);
+    document.getElementById("quickEmailInput")?.addEventListener("input", () => {
+      updateQuickModeCSV();
+    });
+
+    // ── Sync recipients from Outlook's native To field ────────────
+    document.getElementById("syncRecipientsBtn")?.addEventListener("click", () => {
+      syncRecipientsFromOutlook();
+    });
+
     // Feature 8: load persisted rate limit state
     loadRateLimitState();
 
@@ -559,6 +657,129 @@ function clearLog() {
   log("Log cleared.", "info");
 }
 
+/* ─── OUTLOOK SUBJECT SYNC ──────────────────────────────────────
+   Two-way bridge between the taskpane subject field and Outlook's
+   native compose subject field, so non-technical users can type in
+   either place and have them stay in sync automatically.
+   ─────────────────────────────────────────────────────────────── */
+
+/**
+ * Read Outlook's native subject → update the taskpane input.
+ * @param {boolean} force  true = always overwrite, false = only if Outlook changed since last sync
+ */
+function syncSubjectFromOutlook(force) {
+  // Don't overwrite the taskpane while the user is actively typing in it
+  if (!force && subjectHasFocus) return;
+  try {
+    Office.context.mailbox.item.subject.getAsync(result => {
+      if (result.status !== Office.AsyncResultStatus.Succeeded) return;
+      const outlookSubject = result.value || "";
+      // Skip if nothing changed since we last read/pushed (avoids echo-back loops)
+      if (!force && outlookSubject === _lastOutlookSubject) return;
+      _lastOutlookSubject = outlookSubject;
+      const input = document.getElementById("subjectInput");
+      if (!input) return;
+      // Don't interrupt typing — recheck focus inside the async callback too
+      if (!force && subjectHasFocus) return;
+      if (input.value !== outlookSubject) {
+        input.value = outlookSubject;
+        lsSet(LS_KEY_SUBJECT, outlookSubject);
+      }
+    });
+  } catch (e) { /* Office context unavailable — fail silently */ }
+}
+
+/**
+ * Push the taskpane subject value to Outlook's native compose subject field.
+ * @param {string} value
+ */
+function pushSubjectToOutlook(value) {
+  try {
+    _lastOutlookSubject = value; // record what we pushed so the next poll won't echo it back
+    Office.context.mailbox.item.subject.setAsync(value, () => {});
+  } catch (e) { /* fail silently */ }
+}
+
+/* ─── QUICK EMAIL ENTRY MODE ────────────────────────────────────
+   A simple "paste or type emails one per line" mode that removes
+   the CSV barrier for non-technical users doing small sends.
+   ─────────────────────────────────────────────────────────────── */
+
+let _quickModeActive = false;
+
+function toggleQuickMode() {
+  _quickModeActive = !_quickModeActive;
+  const btn     = document.getElementById("quickModeBtn");
+  const csvArea = document.getElementById("csvSection");
+  const qArea   = document.getElementById("quickSection");
+
+  if (_quickModeActive) {
+    csvArea?.classList.add("hidden");
+    qArea?.classList.remove("hidden");
+    if (btn) btn.textContent = "📋 Switch to CSV mode";
+    document.getElementById("quickEmailInput")?.focus();
+  } else {
+    csvArea?.classList.remove("hidden");
+    qArea?.classList.add("hidden");
+    if (btn) btn.textContent = "📧 Quick: type emails";
+  }
+}
+
+function updateQuickModeCSV() {
+  const raw = document.getElementById("quickEmailInput")?.value || "";
+  const emails = raw.split(/[\n,;]+/).map(e => e.trim()).filter(e => e && EMAIL_REGEX.test(e));
+  const csvInput = document.getElementById("csvInput");
+  if (!csvInput) return;
+  if (emails.length === 0) {
+    csvInput.value = "";
+  } else {
+    csvInput.value = "email\n" + emails.join("\n");
+  }
+  csvInput.dispatchEvent(new Event("input"));
+  csvInput.dispatchEvent(new Event("change"));
+  // Auto-parse so the user sees a recipient count immediately
+  if (emails.length > 0) parseAndPreview();
+}
+
+/* ─── SYNC RECIPIENTS FROM OUTLOOK'S TO FIELD ───────────────────
+   Reads the native To field of the compose window and pre-populates
+   the CSV with those addresses — great for small ad-hoc sends.
+   ─────────────────────────────────────────────────────────────── */
+
+function syncRecipientsFromOutlook() {
+  try {
+    Office.context.mailbox.item.to.getAsync(result => {
+      if (result.status !== Office.AsyncResultStatus.Succeeded) {
+        log("Could not read To field from Outlook.", "warning");
+        return;
+      }
+      const recipients = result.value || [];
+      if (recipients.length === 0) {
+        log("Outlook's To field is empty — add addresses there first.", "warning");
+        return;
+      }
+      const csvLines = ["email,display_name"];
+      recipients.forEach(r => {
+        const addr = (r.emailAddress || "").trim();
+        const name = (r.displayName || "").replace(/,/g, " ");
+        if (addr) csvLines.push(`${addr},${name}`);
+      });
+      const csvInput = document.getElementById("csvInput");
+      if (csvInput) {
+        csvInput.value = csvLines.join("\n");
+        csvInput.dispatchEvent(new Event("input"));
+        csvInput.dispatchEvent(new Event("change"));
+        parseAndPreview();
+        log(`Imported ${recipients.length} address${recipients.length !== 1 ? "es" : ""} from Outlook's To field.`, "success");
+      }
+      // Clear Outlook's To field so the merge engine populates it per-recipient
+      Office.context.mailbox.item.to.setAsync([], () => {});
+    });
+  } catch (e) {
+    log("syncRecipientsFromOutlook: " + e.message, "error");
+  }
+}
+
 function initTabs() {
   document.querySelectorAll(".tab-bar .tab-btn").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -571,6 +792,8 @@ function initTabs() {
       btn.classList.add("active");
       btn.setAttribute("aria-selected", "true");
       document.getElementById(`tab-${target}`).classList.remove("hidden");
+      // When switching to Compose, pull any changes the user typed in Outlook's subject field
+      if (target === "compose") syncSubjectFromOutlook(false);
     });
   });
 }
@@ -3092,10 +3315,23 @@ async function showPreSendConfirmation(recipients, batchDelayMs, scheduledCount)
     sendBreakdown = '<br><span style="color:var(--text-muted,#605e5c);font-size:12px;">All ' + scheduledCount + ' scheduled per send_at column</span>';
   }
 
+  // Build a personalized subject preview for the first recipient
+  const subjectTemplate = document.getElementById("subjectInput")?.value || "";
+  let firstSubjectPreview = "";
+  if (subjectTemplate && typeof personalize === "function") {
+    try { firstSubjectPreview = personalize(subjectTemplate, first); } catch(e) { firstSubjectPreview = subjectTemplate; }
+  }
+
   document.getElementById("preSendSummary").innerHTML =
-    "<strong>" + count + "</strong> email" + (count !== 1 ? "s" : "") + " will be sent." + sendBreakdown + "<br>" +
-    "Estimated time: <strong>" + estStr + "</strong><br>" +
-    "First recipient: <strong>" + escapeHtml(firstName) + "</strong> &lt;" + escapeHtml(first.email || "") + "&gt;";
+    `<div style="background:var(--surface,#f3f2f1);border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:13px;line-height:1.7;">
+      🚀 You're about to send <strong>${count}</strong> personalised email${count !== 1 ? "s" : ""}.${sendBreakdown ? "<br>" + sendBreakdown.replace(/<br>/, "") : ""}
+    </div>
+    <div style="font-size:12px;color:var(--text-muted,#605e5c);margin-bottom:6px;">First email preview:</div>
+    <div style="background:var(--surface,#f3f2f1);border-radius:10px;padding:10px 12px;font-size:12px;line-height:1.6;">
+      <strong>To:</strong> ${escapeHtml(firstName)} &lt;${escapeHtml(first.email || "")}&gt;<br>
+      ${firstSubjectPreview ? "<strong>Subject:</strong> " + escapeHtml(firstSubjectPreview) + "<br>" : ""}
+      <strong>Est. time:</strong> ${estStr}
+    </div>`;
   return new Promise(function(resolve) {
     const prevFocus = document.activeElement;
     const modal = document.getElementById("preSendModal");
