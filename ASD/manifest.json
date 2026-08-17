@@ -1,0 +1,137 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
+  "id": "b7f3d21e-4ac1-4e8b-9c7f-cd3548bfd910",
+  "version": "2.6.0",
+  "manifestVersion": "1.17",
+  "name": {
+    "short": "Mail Merge Dev",
+    "full": "Mail Merge Engine — Dev Build"
+  },
+  "description": {
+    "short": "Personalized bulk email directly in New Outlook.",
+    "full": "A free, open-source mail merge add-in for New Outlook. Replaces classic Word-to-Outlook mail merge. Processes all data locally in your browser — zero data ever touches our servers."
+  },
+  "developer": {
+    "name": "Promethean IT",
+    "websiteUrl": "https://grey8ghost.github.io/Mail-Merge",
+    "privacyUrl": "https://grey8ghost.github.io/Mail-Merge/privacy.html",
+    "termsOfUseUrl": "https://grey8ghost.github.io/Mail-Merge/terms.html"
+  },
+  "icons": {
+    "color": "icon-color.png",
+    "outline": "icon-outline.png"
+  },
+  "accentColor": "#F58220",
+  "webApplicationInfo": {
+    "id": "d06ae3cf-a7da-4264-b20e-ab8d70c06977",
+    "resource": "api://d06ae3cf-a7da-4264-b20e-ab8d70c06977"
+  },
+  "authorization": {
+    "permissions": {
+      "resourceSpecific": [
+        {
+          "name": "MailboxItem.ReadWrite.User",
+          "type": "Delegated"
+        }
+      ]
+    }
+  },
+  "validDomains": [
+    "grey8ghost.github.io"
+  ],
+  "extensions": [
+    {
+      "requirements": {
+        "scopes": ["mail"],
+        "capabilities": [
+          {
+            "name": "Mailbox",
+            "minVersion": "1.10"
+          }
+        ]
+      },
+      "runtimes": [
+        {
+          "requirements": {
+            "capabilities": [
+              {
+                "name": "Mailbox",
+                "minVersion": "1.10"
+              }
+            ]
+          },
+          "id": "TaskPaneRuntime",
+          "type": "general",
+          "code": {
+            "page": "https://grey8ghost.github.io/Mail-Merge/taskpane.html"
+          },
+          "lifetime": "short",
+          "actions": [
+            {
+              "id": "OpenTaskPane",
+              "type": "openPage",
+              "pinnable": true,
+              "view": "dashboard"
+            }
+          ]
+        }
+      ],
+      "ribbons": [
+        {
+          "contexts": ["mailCompose"],
+          "tabs": [
+            {
+              "builtInTabId": "TabDefault",
+              "groups": [
+                {
+                  "id": "msgComposeGroup",
+                  "label": "Mail Merge",
+                  "icons": [
+                    {
+                      "size": 16,
+                      "url": "https://grey8ghost.github.io/Mail-Merge/assets/icon-16.png"
+                    },
+                    {
+                      "size": 32,
+                      "url": "https://grey8ghost.github.io/Mail-Merge/assets/icon-32.png"
+                    },
+                    {
+                      "size": 80,
+                      "url": "https://grey8ghost.github.io/Mail-Merge/assets/icon-80.png"
+                    }
+                  ],
+                  "controls": [
+                    {
+                      "id": "btnOpenMerge",
+                      "type": "button",
+                      "label": "Run Merge",
+                      "icons": [
+                        {
+                          "size": 16,
+                          "url": "https://grey8ghost.github.io/Mail-Merge/assets/icon-16.png"
+                        },
+                        {
+                          "size": 32,
+                          "url": "https://grey8ghost.github.io/Mail-Merge/assets/icon-32.png"
+                        },
+                        {
+                          "size": 80,
+                          "url": "https://grey8ghost.github.io/Mail-Merge/assets/icon-80.png"
+                        }
+                      ],
+                      "supertip": {
+                        "title": "Run Mail Merge",
+                        "description": "Open the Mail Merge task pane to send personalized emails to multiple recipients."
+                      },
+                      "actionId": "OpenTaskPane"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
