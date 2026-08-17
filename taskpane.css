@@ -1918,9 +1918,29 @@ details[open] > .hint-advanced-toggle::before { transform: rotate(90deg); }
   max-width: 80px;   /* keep the select narrow so the button has room to breathe */
 }
 
-/* Orange "Send test" button — grows to fill remaining row space */
+/* Compact "Check errors" button — sits on the top line of the step1 box */
+.btn-step1-check {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 99px;
+  border: 1px solid rgba(245,130,32,0.4);
+  background: rgba(245,130,32,0.08);
+  color: var(--brand-orange-dark);
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+  transition: background var(--transition), border-color var(--transition);
+}
+.btn-step1-check:hover {
+  background: rgba(245,130,32,0.16);
+  border-color: rgba(245,130,32,0.6);
+}
+
+/* Orange "Send test" button — wraps to its own full-width line */
 .btn-step1 {
-  flex: 1;
+  flex: 1 1 100%;   /* force onto a new line so top row stays compact */
   background: linear-gradient(180deg, var(--brand-orange) 0%, var(--brand-orange-dark) 100%);
   color: #fff;
   border: none;

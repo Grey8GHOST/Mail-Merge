@@ -211,11 +211,6 @@
         </div>
       </div>
 
-      <!-- Pre-flight check -->
-      <div class="section" style="padding-top:4px;padding-bottom:4px;">
-        <button class="btn-secondary" id="checkErrorsBtn" style="width:100%;font-size:12px;">🔍 Check for errors</button>
-      </div>
-
     </div><!-- /tab-recipients -->
 
     <!-- Tab: Compose -->
@@ -522,7 +517,7 @@
           </div>
         </div>
         <p class="about-tagline">Classic Mail Merge Engine for New Outlook</p>
-        <p class="hint" style="margin-top:5px;">All data is processed locally in your browser. Nothing is ever transmitted to our servers.</p>
+        <p class="hint" style="margin-top:5px;">All data is processed locally in your browser. Your subject line and CSV are saved to your browser's local storage for convenience — nothing is transmitted to or stored on GitHub Pages servers. Emails are dispatched securely via Microsoft Graph API over TLS/HTTPS on behalf of your authenticated Microsoft 365 account.</p>
         <div class="about-links">
           <a href="https://leighton-grey.github.io/mail-merge-addin" target="_blank" class="about-link">Website</a>
           <span class="about-sep">·</span>
@@ -569,6 +564,7 @@
       <select id="testRowSelect" title="Row to use for test send" class="step1-row-select">
         <option value="0">Row 1</option>
       </select>
+      <button id="checkErrorsBtn" class="btn-step1-check" title="Run pre-flight check on recipients and tokens">🔍 Check errors</button>
       <button id="testSendBtn" class="btn-step1">📨 Send test to myself</button>
     </div>
 
@@ -599,23 +595,18 @@
 
     </div>
 
-    <!-- Retry / report buttons — both start hidden. JS shows them after
-         a merge finishes if there were failures (retryFailedBtn) or
-         always at completion (downloadReportBtn). Button text for
-         retryFailedBtn is set dynamically by JS (e.g. "Retry 3 failed"). -->
-    <div style="margin-top:5px;display:flex;gap:6px;flex-wrap:wrap;">
+    <!-- Retry / report buttons + Log toggle in one compact row.
+         retryFailedBtn and downloadReportBtn start hidden; JS reveals them
+         after a merge completes. Log ↕ is always visible for support access. -->
+    <div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
       <button id="retryFailedBtn"    class="btn-secondary hidden"></button>
       <button id="downloadReportBtn" class="btn-secondary hidden">📊 Download report</button>
+      <button class="btn-secondary" id="toggleLogBtn"
+              style="white-space:nowrap;font-size:11px;padding:2px 8px;margin-left:auto;">Log ↕</button>
     </div>
 
-    <!-- Mini log strip + expand toggle.
-         #footerLogMini shows the single most-recent log entry as a
-         compact dark terminal strip. "Log ↕" button toggles #fullLogArea. -->
-    <div class="footer-log-row">
-      <div id="footerLogMini" class="footer-log-mini hidden"></div>
-      <button class="btn-secondary" id="toggleLogBtn"
-              style="white-space:nowrap;font-size:11px;padding:2px 8px;">Log ↕</button>
-    </div>
+    <!-- Mini log strip — hidden by default, shown when Log ↕ is toggled -->
+    <div id="footerLogMini" class="footer-log-mini hidden" style="margin-top:4px;"></div>
 
     <!-- Full scrollable log — hidden by default, shown when user
          clicks the "Log ↕" toggle button above. Contains the complete
@@ -629,15 +620,6 @@
         <button class="btn-secondary" id="downloadLogBtn">⬇ Download log</button>
       </div>
     </div>
-
-    <!-- Privacy disclosure — placed INSIDE .app-footer so it expands upward
-         within the sticky footer rather than appearing below it in the DOM,
-         which would cause it to render underneath the footer and overlap content.
-         The <details> element is toggled open/closed by the browser natively. -->
-    <details class="footer-disclosure">
-      <summary class="footer-disclosure-btn">🔒 Privacy &amp; data</summary>
-      <p class="footer-disclosure-body">All data is processed locally in your browser. Your subject line and CSV are saved to your browser's local storage for convenience — nothing is transmitted to or stored on GitHub Pages servers. Emails are dispatched securely via Microsoft Graph API over TLS/HTTPS on behalf of your authenticated Microsoft 365 account.</p>
-    </details>
 
   </div><!-- /app-footer -->
 
