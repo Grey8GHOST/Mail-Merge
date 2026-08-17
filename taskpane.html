@@ -561,10 +561,12 @@
          lets them pick which recipient row to use for the test. -->
     <div class="footer-step1-row">
       <span class="step1-label">Step 1 — Test first</span>
-      <select id="testRowSelect" title="Row to use for test send" class="step1-row-select">
-        <option value="0">Row 1</option>
-      </select>
-      <button id="checkErrorsBtn" class="btn-step1-check" title="Run pre-flight check on recipients and tokens">🔍 Check errors</button>
+      <div style="display:flex;gap:5px;align-items:center;margin-left:auto;flex-shrink:0;">
+        <select id="testRowSelect" title="Row to use for test send" class="step1-row-select">
+          <option value="0">Row 1</option>
+        </select>
+        <button id="checkErrorsBtn" class="btn-step1-check" title="Run pre-flight check on recipients and tokens">🔍 Check errors</button>
+      </div>
       <button id="testSendBtn" class="btn-step1">📨 Send test to myself</button>
     </div>
 
