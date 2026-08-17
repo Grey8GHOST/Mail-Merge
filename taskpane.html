@@ -595,18 +595,19 @@
 
     </div>
 
-    <!-- Retry / report buttons + Log toggle in one compact row.
-         retryFailedBtn and downloadReportBtn start hidden; JS reveals them
-         after a merge completes. Log ↕ is always visible for support access. -->
+    <!-- Retry / report buttons (hidden until merge completes) -->
     <div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
       <button id="retryFailedBtn"    class="btn-secondary hidden"></button>
       <button id="downloadReportBtn" class="btn-secondary hidden">📊 Download report</button>
+    </div>
+    <!-- Log toggle — centered -->
+    <div style="text-align:center;margin-top:3px;">
       <button class="btn-secondary" id="toggleLogBtn"
-              style="white-space:nowrap;font-size:11px;padding:2px 8px;margin-left:auto;">Log ↕</button>
+              style="white-space:nowrap;font-size:11px;padding:2px 12px;">Log ↕</button>
     </div>
 
     <!-- Mini log strip — hidden by default, shown when Log ↕ is toggled -->
-    <div id="footerLogMini" class="footer-log-mini hidden" style="margin-top:4px;"></div>
+    <div id="footerLogMini" class="footer-log-mini hidden" style="margin-top:3px;"></div>
 
     <!-- Full scrollable log — hidden by default, shown when user
          clicks the "Log ↕" toggle button above. Contains the complete
