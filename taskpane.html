@@ -116,9 +116,10 @@
       <!-- CSV section -->
       <div id="csvSection" class="section">
         <label class="label">Recipient list <span class="hint-inline">(CSV or Excel)</span></label>
-        <p class="hint" style="margin-bottom:8px;">Upload a spreadsheet of recipients, or paste data below. Each row becomes one email. <a id="downloadSampleCsv" href="#" style="color:var(--accent,#534AB7);text-decoration:none;white-space:nowrap;" title="Download a ready-to-fill sample CSV with all supported columns">&#11015; Download sample file</a> to see the expected format.</p>
+        <p class="hint" style="margin-bottom:8px;">Upload a spreadsheet or paste data below. Each row becomes one email.</p>
         <div class="csv-upload-row">
           <button class="btn-secondary" id="uploadCsvBtn" title="Load a .csv or .xlsx spreadsheet of recipients">📂 Load CSV / Excel</button>
+          <a id="downloadSampleCsv" href="#" class="btn-secondary btn-sample-csv" title="Download a ready-to-fill sample CSV with all supported columns">⬇ Sample file</a>
           <input type="file" id="csvFileInput" accept=".csv,.xlsx,.xls,text/csv" class="hidden" />
         </div>
         <!-- Drag-and-drop zone wraps the textarea -->

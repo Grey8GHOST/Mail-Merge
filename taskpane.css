@@ -470,6 +470,9 @@ body {
   box-shadow: 0 1px 4px rgba(91,82,200,0.10);
   transition: background var(--transition), border-color var(--transition),
               color var(--transition), box-shadow var(--transition), transform var(--transition);
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;   /* so <a> tags styled as btn-secondary don't show underline */
 }
 
 .btn-secondary:hover {
