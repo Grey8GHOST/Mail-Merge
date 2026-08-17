@@ -458,7 +458,11 @@ Office.onReady((info) => {
     initOptOutUI();
 
     document.getElementById("toggleLogBtn").addEventListener("click", () => {
-      document.getElementById("fullLogArea").classList.toggle("hidden");
+      const mini = document.getElementById("footerLogMini");
+      const full = document.getElementById("fullLogArea");
+      const open = !full.classList.contains("hidden");
+      full.classList.toggle("hidden", open);
+      mini.classList.toggle("hidden", open);
     });
 
     // Import from Contacts (Feature 1)
@@ -817,6 +821,39 @@ function log(message, type = "info") {
 }
 
 /**
+ * Show a brief toast notification for user-facing guidance messages.
+ * Toasts slide in from the top and auto-dismiss after `duration` ms.
+ * They are in addition to the detailed log (for support use).
+ *
+ * @param {string} message - Human-readable message to display
+ * @param {"info"|"success"|"warning"|"error"} [type="info"] - Severity
+ * @param {number} [duration=4000] - Auto-dismiss delay in ms (0 = never)
+ */
+function showToast(message, type, duration) {
+  if (!type) type = "info";
+  if (duration === undefined) duration = 4000;
+  var icons = { info: "💡", success: "✓", warning: "⚠️", error: "✕" };
+  var container = document.getElementById("toastContainer");
+  if (!container) return;
+  var toast = document.createElement("div");
+  toast.className = "toast toast-" + type;
+  toast.setAttribute("role", "alert");
+  toast.innerHTML =
+    '<span class="toast-icon">' + (icons[type] || "💡") + '</span>' +
+    '<span class="toast-msg">' + message + '</span>' +
+    '<button class="toast-close" aria-label="Dismiss">&times;</button>';
+  container.appendChild(toast);
+  var dismiss = function() {
+    if (toast.parentNode) {
+      toast.classList.add("toast-hide");
+      setTimeout(function() { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 220);
+    }
+  };
+  toast.querySelector(".toast-close").addEventListener("click", dismiss);
+  if (duration > 0) setTimeout(dismiss, duration);
+}
+
+/**
  * Clear all entries from the status log and reset to the initial ready state.
  */
 function clearLog() {
@@ -1075,10 +1112,14 @@ function restoreLocalState() {
     parseAndPreview();  // rebuild recipient table from the restored CSV string
   }
 
-  // Restore user-added custom tag chips (non-default, non-smart tags).
-  // DEFAULT_TAGS are already rendered in the HTML; duplicates are silently ignored by addTagToBar().
-  const savedTags = JSON.parse(lsGet(LS_KEY_TAGS) || "[]");
-  savedTags.forEach(tag => addTagToBar(tag));
+  // Restore manually-added custom tag chips (non-default, non-smart tags).
+  // On each startup, clear any tags that were persisted by older versions —
+  // CSV column tags should never survive a taskpane reload because the CSV
+  // data itself is in-memory only. Only tags the user explicitly types via
+  // the custom tag input are saved going forward (persist=false for CSV tags).
+  lsSet(LS_KEY_TAGS, JSON.stringify([]));
+  // (savedTags intentionally empty after the clear — users re-add manual tags
+  //  as needed; CSV column tags reappear automatically when CSV is reloaded.)
 
   renderTemplateList();  // rebuild the saved-template picker in the Compose tab
 
@@ -1324,6 +1365,7 @@ function applyMatchFields() {
   });
   if (!newMapping.email) {
     log("Match Fields: 'Email' column is required — please map it.", "warning");
+    showToast("Please map a column to Email before applying.", "warning");
     return;
   }
   fieldMapping = newMapping;
@@ -1571,6 +1613,7 @@ async function handlePreviewAll() {
   const toPreview = getFilteredSortedRecipients();
   if (!toPreview.length) {
     log("No recipients to preview.", "warning");
+    showToast("No recipients to preview. Load a CSV or add recipients first.", "warning");
     return;
   }
   const subjectTemplate = document.getElementById("subjectInput").value.trim();
@@ -1790,6 +1833,7 @@ function insertTag(tag, forceSubject = false) {
     // Restore focus so the user can click another tag immediately.
     input.focus();
     log(`Inserted tag into subject (taskpane): ${tag}`, "success");
+    showToast(`${tag} added to subject.`, "success", 2000);
 
   } else if (tagTarget === "subject") {
     // ── Path 2: Append to the Outlook native subject via Office.js ─
@@ -1814,6 +1858,7 @@ function insertTag(tag, forceSubject = false) {
           // push-to-Outlook debounce — we just came FROM Outlook).
           lsSet(LS_KEY_SUBJECT, newSubject);
           log(`Inserted tag into subject (native): ${tag}`, "success");
+          showToast(`${tag} added to subject.`, "success", 2000);
         }
       });
     });
@@ -1833,6 +1878,7 @@ function insertTag(tag, forceSubject = false) {
           log(`Failed to insert tag into body: ${tag}`, "error");
         } else {
           log(`Inserted tag into body: ${tag}`, "success");
+          showToast(`${tag} inserted into body.`, "success", 2000);
         }
       }
     );
@@ -1883,7 +1929,11 @@ function addCustomTag() {
  * @param {string} tag   - The placeholder string, e.g. "{{first_name}}"
  * @param {string} [type] - "smart" for computed tags like {{today}} / {{greeting_line}}
  */
-function addTagToBar(tag, type) {
+function addTagToBar(tag, type, persist) {
+  // persist defaults to true for manually-added tags, false for CSV-column tags.
+  // CSV column tags are transient (the CSV data is in-memory only) so they
+  // should never be saved to localStorage.
+  if (persist === undefined) persist = true;
   // Bail out early if this tag chip already exists (prevents duplicates
   // when restoring from localStorage or re-parsing the same CSV).
   const existing = document.querySelector(`#tagBar [data-tag="${CSS.escape(tag)}"]`);
@@ -1938,8 +1988,8 @@ function addTagToBar(tag, type) {
   });
 
   bar.appendChild(chip);
-  // Persist non-smart custom tags to localStorage so they survive page reloads.
-  if (type !== "smart") saveCustomTagsToStorage();
+  // Only persist to localStorage for manually-added tags, not CSV column tags.
+  if (type !== "smart" && persist) saveCustomTagsToStorage();
 }
 
 /**
@@ -2469,9 +2519,11 @@ function parseAndPreview() {
     document.getElementById("mapFieldsBtn").style.display = "";
     if (!fieldMapping.email) {
       log("No 'email' column detected — opening Match Fields to map columns.", "warning");
+      showToast("No 'email' column found. Use Match Fields to map your email column.", "warning");
       openMatchFieldsModal(headers);
     } else {
       log("CSV must contain an 'email' column (or map a column to email).", "error");
+      showToast("Your CSV needs an 'email' column, or use Match Fields to map one.", "error");
     }
     return;
   }
@@ -2534,7 +2586,7 @@ function parseAndPreview() {
 
   headers.forEach(h => {
     const tag = `{{${h}}}`;
-    if (!DEFAULT_TAGS.includes(tag)) addTagToBar(tag);
+    if (!DEFAULT_TAGS.includes(tag)) addTagToBar(tag, undefined, false);
   });
 
   // Feature 4: always expose merge_table and unsubscribe_link as smart tags
@@ -3015,7 +3067,7 @@ function getAccessToken() {
 
 function getTokenViaDialog() {
   return new Promise((resolve, reject) => {
-    const dialogUrl = "https://grey8ghost.github.io/Mail-Merge/auth-dialog.html?v=5";
+    const dialogUrl = "https://leighton-grey.github.io/mail-merge-addin/auth-dialog.html?v=5";
     Office.context.ui.displayDialogAsync(
       dialogUrl,
       { height: 60, width: 35, promptBeforeOpen: false },
@@ -3976,6 +4028,7 @@ async function handleMergeClick() {
     parseAndPreview();
     if (parsedRecipients.length === 0) {
       log("No valid recipients found. Check your CSV format.", "error");
+      showToast("No valid recipients found. Make sure your CSV has an 'email' column with valid addresses.", "error");
       return;
     }
   }
@@ -4050,6 +4103,7 @@ async function handleMergeClick() {
   }
   if (validRaw.length === 0) {
     log("No valid email addresses found.", "error");
+    showToast("No valid email addresses found. Check your recipient list.", "error");
     return;
   }
 
@@ -4459,7 +4513,7 @@ function initOptOutUI() {
   const optoutImportBtn = document.getElementById("optoutImportBtn");
   if (optoutImportBtn) {
     optoutImportBtn.addEventListener("click", function() {
-      if (!parsedRecipients.length) { log("Load a CSV first.", "warning"); return; }
+      if (!parsedRecipients.length) { log("Load a CSV first.", "warning"); showToast("Load a CSV file first from the Recipients tab.", "warning"); return; }
       const list = getOptOutList();
       let added = 0;
       for (const r of parsedRecipients) {
@@ -4862,7 +4916,7 @@ async function handleBroadcast() {
   broadcastInProgress = true;
   try {
   const rawAll = getFilteredSortedRecipients();
-  if (!rawAll.length) { log("No recipients loaded.", "warning"); return; }
+  if (!rawAll.length) { log("No recipients loaded.", "warning"); showToast("No recipients loaded. Load a CSV file from the Recipients tab first.", "warning"); return; }
 
   // L3: filter skip_if rows (same logic as validateRecipients)
   const rawValid = rawAll.filter(r => {
@@ -4904,7 +4958,7 @@ async function handleBroadcast() {
   const skipped = afterOptOut.length - validEmails.length;
   if (skipped > 0) log(`Broadcast: ${skipped} row(s) with invalid email skipped.`, "warning");
 
-  if (!validEmails.length) { log("No valid recipients for broadcast.", "warning"); return; }
+  if (!validEmails.length) { log("No valid recipients for broadcast.", "warning"); showToast("No valid recipients for broadcast. Check your recipient list.", "warning"); return; }
 
   // Duplicate guard
   const recentDupes = checkDuplicateSendHistory(validEmails);
@@ -5077,9 +5131,9 @@ function updateRateLimitBadge() {
 /* ─── SIMULATE / DRY-RUN MODE (Feature 10) ─────────────────────── */
 
 async function handleSimulate() {
-  if (!parsedRecipients.length) { log("Load a CSV first.", "warning"); return; }
+  if (!parsedRecipients.length) { log("Load a CSV first.", "warning"); showToast("Load a CSV file first from the Recipients tab.", "warning"); return; }
   const valid = getFilteredSortedRecipients();
-  if (!valid.length) { log("No recipients match current filter.", "warning"); return; }
+  if (!valid.length) { log("No recipients match current filter.", "warning"); showToast("No recipients match the current filter. Try clearing your filters.", "warning"); return; }
 
   const simBtn = document.getElementById("simulateBtn");
   if (simBtn) simBtn.disabled = true;
@@ -5263,6 +5317,7 @@ async function handleInsertField() {
 async function handleCheckErrors() {
   if (!parsedRecipients.length) {
     log("Load a CSV first before checking for errors.", "warning");
+    showToast("Load a CSV file from the Recipients tab before running the pre-flight check.", "warning");
     return;
   }
 
@@ -5506,7 +5561,7 @@ function refreshAfterTableEdit() {
   }
   headers.forEach(function(h) {
     const tag = '{{' + h + '}}';
-    if (!DEFAULT_TAGS.includes(tag)) addTagToBar(tag);
+    if (!DEFAULT_TAGS.includes(tag)) addTagToBar(tag, undefined, false);
   });
   populateFilterSortBar(headers);
   populateInsertFieldSelect(headers);

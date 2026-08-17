@@ -1416,6 +1416,83 @@ details[open] .footer-disclosure-btn::after {
   border-radius: var(--radius-sm);
 }
 
+/* ─── Toast notifications ────────────────────────────────────────
+   Slide-in banners for user-facing guidance messages.
+   Fixed at the top of the pane so they're always visible.
+   Auto-dismiss via the .toast-hide animation.
+   ─────────────────────────────────────────────────────────────── */
+.toast-container {
+  position: fixed;
+  top: 46px;           /* just below the header bar */
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 8px;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  line-height: 1.45;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+  pointer-events: all;
+  animation: toastSlideIn 0.22s ease-out forwards;
+  border-left: 3px solid transparent;
+  background: #fff;
+  color: var(--text-main);
+  max-width: 100%;
+  word-break: break-word;
+}
+
+.toast-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.toast-msg {
+  flex: 1;
+}
+
+.toast-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 0 0 0 4px;
+  flex-shrink: 0;
+  line-height: 1;
+  opacity: 0.6;
+}
+.toast-close:hover { opacity: 1; }
+
+.toast-info    { border-left-color: var(--accent);  background: var(--accent-bg); }
+.toast-success { border-left-color: #27AE60;         background: #F0FFF4; }
+.toast-warning { border-left-color: #F2994A;         background: #FFF8F0; }
+.toast-error   { border-left-color: #EB5757;         background: #FFF5F5; }
+
+.toast-hide {
+  animation: toastSlideOut 0.2s ease-in forwards;
+}
+
+@keyframes toastSlideIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes toastSlideOut {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-6px); }
+}
+
 /* ─── Code inline ────────────────────────────────────────────── */
 code {
   background: var(--accent-bg);
