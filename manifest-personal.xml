@@ -68,7 +68,7 @@
                   <Label resid="TaskpaneButton.Label"/>
                   <Supertip>
                     <Title resid="TaskpaneButton.SupertipTitle"/>
-                    <Description resid="TaskpaneButton.SupertipDescription"/>
+                    <Description resid="Btn.TipDesc"/>
                   </Supertip>
                   <Icon>
                     <bt:Image size="16" resid="Icon.16x16"/>
@@ -104,7 +104,7 @@
         <bt:String id="TaskpaneButton.SupertipTitle" DefaultValue="Run Mail Merge"/>
       </bt:ShortStrings>
       <bt:LongStrings>
-        <bt:String id="TaskpaneButton.SupertipDescription" DefaultValue="Open the Mail Merge task pane to send personalised emails to multiple recipients."/>
+        <bt:String id="Btn.TipDesc" DefaultValue="Open the Mail Merge task pane to send personalised emails to multiple recipients."/>
       </bt:LongStrings>
     </Resources>
 
