@@ -242,7 +242,8 @@ Office.onReady((info) => {
 
     document.getElementById("mergeBtn").addEventListener("click", handleMergeClick);
     document.getElementById("stopBtn").addEventListener("click", handleStop);
-    document.getElementById("previewBtn").addEventListener("click", parseAndPreview);
+    const previewBtn = document.getElementById("previewBtn");
+    if (previewBtn) previewBtn.addEventListener("click", parseAndPreview);
 
     // Optional columns dropdown toggle
     const csvOptionalToggle = document.getElementById("csvOptionalToggle");
