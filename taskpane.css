@@ -111,7 +111,10 @@ body {
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   font-size: 13px;
   line-height: 1.5;
-  background: var(--bg);
+  /* Purple header colour at the top so the rounded-bottom header corners
+     blend cleanly; rest of page uses the standard lavender-grey wash  */
+  background: linear-gradient(to bottom, #3D35A0 56px, var(--bg) 56px);
+  background-attachment: local;
   color: var(--text);
   /* Column flex so the scrollable content area and sticky footer
      stack vertically and footer always stays at the bottom.     */
@@ -135,13 +138,13 @@ body {
   background: linear-gradient(135deg, #6C62D4 0%, #534AB7 45%, #3D35A0 100%);
   color: #fff;
   padding: 10px 14px;
-  margin: 8px 8px 0;           /* float it off the edges */
+  margin: 0;
   display: flex;
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
-  border-radius: 14px;         /* fully rounded card */
-  box-shadow: 0 4px 16px rgba(61,53,160,0.30);
+  border-radius: 0 0 16px 16px;  /* flush top, rounded bottom corners */
+  box-shadow: 0 4px 16px rgba(61,53,160,0.28);
 }
 
 /* Square pill wrapper for the app logo */
@@ -1829,13 +1832,14 @@ details[open] > .hint-advanced-toggle::before { transform: rotate(90deg); }
 .footer-step1-row {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;      /* wrap to next line when pane is too narrow */
+  flex-wrap: wrap;
   gap: 6px;
-  background: linear-gradient(135deg, rgba(245,130,32,0.08) 0%, rgba(245,130,32,0.03) 100%);
-  border: 1px solid rgba(245,130,32,0.25);
-  border-radius: var(--radius);
-  padding: 7px 10px;
+  background: linear-gradient(135deg, rgba(245,130,32,0.13) 0%, rgba(245,130,32,0.05) 60%, rgba(255,255,255,0.6) 100%);
+  border: 1.5px solid rgba(245,130,32,0.35);
+  border-radius: var(--radius-lg);   /* more generous rounding = softer, modern card */
+  padding: 9px 12px;
   margin-bottom: 8px;
+  box-shadow: 0 4px 14px rgba(245,130,32,0.12), 0 1px 3px rgba(0,0,0,0.06);
 }
 
 /* "STEP 1" uppercase label — visually styled like a badge */
