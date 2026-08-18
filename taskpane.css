@@ -1357,67 +1357,6 @@ body {
   border: 1px solid rgba(255,255,255,0.05);  /* barely visible border for definition */
 }
 
-/* ─── Footer disclosure (collapsible privacy note) ───────────────
-   A <details> element that lives INSIDE .app-footer (as its last
-   child) so it expands upward above the footer without creating
-   overlap or layout shift below it.
-
-   The summary button (.footer-disclosure-btn) shows a › chevron
-   that rotates 90° when [open] is set by the browser.
-   The body (.footer-disclosure-body) contains the privacy text.
-   ─────────────────────────────────────────────────────────────── */
-.footer-disclosure {
-  margin: 8px 10px 4px;  /* top margin separates it from the log row above */
-}
-
-.footer-disclosure-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  width: 100%;
-  padding: 5px 12px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-muted);
-  background: none;
-  border: none;
-  cursor: pointer;
-  list-style: none;
-  font-family: inherit;
-  border-radius: 99px;
-  transition: color var(--transition), background var(--transition);
-}
-
-.footer-disclosure-btn::-webkit-details-marker { display: none; }
-
-.footer-disclosure-btn::after {
-  content: '›';
-  font-size: 13px;
-  transition: transform var(--transition);
-  display: inline-block;
-}
-
-details[open] .footer-disclosure-btn::after {
-  transform: rotate(90deg);
-}
-
-.footer-disclosure-btn:hover {
-  color: var(--accent);
-  background: var(--accent-bg);
-}
-
-.footer-disclosure-body {
-  margin-top: 6px;
-  padding: 10px 14px;
-  font-size: 11px;
-  color: var(--text-muted);
-  line-height: 1.65;
-  text-align: center;
-  background: var(--surface);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-sm);
-}
 
 /* ─── Toast notifications ────────────────────────────────────────
    Slide-in banners for user-facing guidance messages.

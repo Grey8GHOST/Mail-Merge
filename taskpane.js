@@ -232,7 +232,7 @@ Office.onReady((info) => {
         you just need an M365 account with Exchange Online as well, and Outlook must be signed in
         with that M365 account (not the Google account).</em><br><br>
         <a href="https://learn.microsoft.com/en-us/microsoft-365/admin/misc/why-cant-i-do-mail-merge"
-           style="color:#fff;text-decoration:underline;" target="_blank">Learn more about Exchange Online requirements</a>`;
+           style="color:#fff;text-decoration:underline;" target="_blank" rel="noopener noreferrer">Learn more about Exchange Online requirements</a>`;
       document.body.insertBefore(banner, document.body.firstChild);
       ["mergeBtn","testSendBtn","previewAllBtn","saveDraftsBtn","broadcastBtn"].forEach(id => {
         const el = document.getElementById(id);
@@ -839,10 +839,19 @@ function showToast(message, type, duration) {
   var toast = document.createElement("div");
   toast.className = "toast toast-" + type;
   toast.setAttribute("role", "alert");
-  toast.innerHTML =
-    '<span class="toast-icon">' + (icons[type] || "💡") + '</span>' +
-    '<span class="toast-msg">' + message + '</span>' +
-    '<button class="toast-close" aria-label="Dismiss">&times;</button>';
+  var iconSpan = document.createElement("span");
+  iconSpan.className = "toast-icon";
+  iconSpan.textContent = icons[type] || "💡";
+  var msgSpan = document.createElement("span");
+  msgSpan.className = "toast-msg";
+  msgSpan.textContent = message;
+  var closeBtn = document.createElement("button");
+  closeBtn.className = "toast-close";
+  closeBtn.setAttribute("aria-label", "Dismiss");
+  closeBtn.textContent = "×";
+  toast.appendChild(iconSpan);
+  toast.appendChild(msgSpan);
+  toast.appendChild(closeBtn);
   container.appendChild(toast);
   var dismiss = function() {
     if (toast.parentNode) {
@@ -850,7 +859,7 @@ function showToast(message, type, duration) {
       setTimeout(function() { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 220);
     }
   };
-  toast.querySelector(".toast-close").addEventListener("click", dismiss);
+  closeBtn.addEventListener("click", dismiss);
   if (duration > 0) setTimeout(dismiss, duration);
 }
 
@@ -937,18 +946,25 @@ function updateQuickModeCSV() {
   const emails = raw.split(/[\n,;]+/).map(e => e.trim()).filter(e => e && EMAIL_REGEX.test(e));
   const csvInput = document.getElementById("csvInput");
   if (!csvInput) return;
+
   if (emails.length === 0) {
+    // Textarea cleared — wipe the recipient list and preview immediately
+    // without calling parseAndPreview() (which would wrongly open Match Fields on an empty CSV)
     csvInput.value = "";
-  } else {
-    csvInput.value = "email\n" + emails.join("\n");
+    parsedRecipients = [];
+    selectedRowIndices = null;
+    const countEl = document.getElementById("recipientCount");
+    if (countEl) countEl.textContent = "";
+    renderPreviewTable([]);
+    return;
   }
+
+  csvInput.value = "email\n" + emails.join("\n");
   csvInput.dispatchEvent(new Event("input"));
   csvInput.dispatchEvent(new Event("change"));
   // Debounce parseAndPreview — don't re-parse on every keypress
   clearTimeout(_quickModeParseTimer);
-  if (emails.length > 0) {
-    _quickModeParseTimer = setTimeout(() => parseAndPreview(), 350);
-  }
+  _quickModeParseTimer = setTimeout(() => parseAndPreview(), 350);
 }
 
 /* ─── SYNC RECIPIENTS FROM OUTLOOK'S TO FIELD ───────────────────
@@ -5217,7 +5233,7 @@ async function searchDirectory(query) {
     );
     renderDirectoryList();
   } catch(err) {
-    el.innerHTML = `<p style="padding:8px;color:#eb5757;">Search failed: ${err.message}</p>`;
+    el.innerHTML = `<p style="padding:8px;color:#eb5757;">Search failed: ${escapeHtml(err.message)}</p>`;
   }
 }
 
