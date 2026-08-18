@@ -113,6 +113,15 @@ const GRAPH_BATCH_URL     = "https://graph.microsoft.com/v1.0/$batch";
 const BATCH_SIZE          = 20;
 const BATCH_DELAY_MS      = 1500;   // default — overridden at runtime by batchDelayInput
 const MAX_RETRIES         = 3;
+
+// ── Licensing ──────────────────────────────────────────────────────────────
+// Set LICENSE_ENFORCEMENT = true to enforce the license gate.
+// While false the check still runs silently — flip to true when ready to go live.
+const LICENSE_ENFORCEMENT      = false;
+const LICENSE_API_URL          = "https://YOUR_FUNCTION_APP.azurewebsites.net/api/license";
+const LICENSE_CACHE_KEY        = "mailmerge_license_token";
+const LICENSE_CACHE_EXPIRY_KEY = "mailmerge_license_expiry";
+// ──────────────────────────────────────────────────────────────────────────
 const EMAIL_REGEX         = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
 // P3: hoisted to module scope — prevents recompilation on every personalize() call
 const TOKEN_REGEX         = /\{\{([^}|]+)(?:\|([^}]*))?\}\}/gi;
@@ -209,9 +218,175 @@ let contactsActiveTab = "contacts"; // "contacts" | "groups" | "directory"
 let directoryData = [];
 let selectedDirectory = new Set();
 
+// ── License check ─────────────────────────────────────────────────────────
+/**
+ * Checks whether the signed-in user's tenant has an active subscription.
+ * Result is cached in localStorage for 24 hours (matching the JWT expiry on the server).
+ *
+ * When LICENSE_ENFORCEMENT is false this function runs and logs silently — it does not
+ * block any features. Flip LICENSE_ENFORCEMENT = true when ready to gate the product.
+ */
+async function checkLicense() {
+  // 1. Check local cache first (avoid API call on every startup)
+  const cachedToken  = localStorage.getItem(LICENSE_CACHE_KEY);
+  const cachedExpiry = localStorage.getItem(LICENSE_CACHE_EXPIRY_KEY);
+  if (cachedToken && cachedExpiry && Date.now() < parseInt(cachedExpiry, 10)) {
+    log("License: valid (cached)", "info");
+    return;
+  }
+
+  // 2. Get user identity from MSAL token claims (already authenticated by this point)
+  let userId   = null;
+  let tenantId = null;
+  let email    = null;
+  try {
+    const account = Office.context.mailbox.userProfile;
+    email    = account && account.emailAddress ? account.emailAddress : null;
+    // Extract tenantId and userId from the Office identity token if available
+    const idToken = Office.context.auth && Office.context.auth.getAccessTokenAsync
+      ? null  // Will be populated below via getAccessTokenAsync
+      : null;
+  } catch (e) {
+    log("License: could not read Office profile — " + e.message, "warn");
+  }
+
+  // 3. Use Office SSO to get a token with user identity claims
+  let ssoToken = null;
+  try {
+    await new Promise((resolve) => {
+      Office.auth.getAccessToken({ allowSignInPrompt: false, allowConsentPrompt: false }, (result) => {
+        if (result.status === Office.AsyncResultStatus.Succeeded) {
+          ssoToken = result.value;
+          // Decode JWT payload (middle segment) to extract tid and oid
+          try {
+            const payload = JSON.parse(atob(ssoToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+            tenantId = payload.tid || null;
+            userId   = payload.oid || null;
+          } catch { /* non-fatal */ }
+        }
+        resolve();
+      });
+    });
+  } catch (e) {
+    log("License: SSO token unavailable — " + e.message, "warn");
+  }
+
+  if (!userId || !tenantId) {
+    log("License: could not determine user identity, skipping check.", "warn");
+    return;
+  }
+
+  // 4. Call the license API
+  try {
+    const params = new URLSearchParams({ userId, tenantId });
+    if (email) params.set("email", email);
+    const res = await fetch(`${LICENSE_API_URL}?${params.toString()}`);
+
+    if (!res.ok) {
+      log(`License API returned ${res.status} — treating as unlicensed.`, "warn");
+      if (LICENSE_ENFORCEMENT) showLicenseGate("server_error");
+      return;
+    }
+
+    const data = await res.json();
+
+    if (data.licensed) {
+      log(`License: active — plan: ${data.plan}`, "info");
+      // Cache the token until its expiry
+      localStorage.setItem(LICENSE_CACHE_KEY, data.token || "valid");
+      localStorage.setItem(LICENSE_CACHE_EXPIRY_KEY, String(new Date(data.expiresAt).getTime()));
+    } else {
+      log(`License: not active — reason: ${data.reason}`, "warn");
+      if (LICENSE_ENFORCEMENT) showLicenseGate(data.reason);
+    }
+  } catch (err) {
+    log("License check network error (non-fatal): " + err.message, "warn");
+    // Never block the add-in on a network error — fail open
+  }
+}
+
+/**
+ * Shows a non-dismissible overlay when LICENSE_ENFORCEMENT is true and the user is unlicensed.
+ * @param {string} reason - "no_subscription" | "suspended" | "server_error"
+ */
+function showLicenseGate(reason) {
+  const messages = {
+    no_subscription: {
+      title: "Subscription required",
+      body: "Mail Merge requires an active subscription. Purchase one through Microsoft AppSource to continue.",
+      link: "https://appsource.microsoft.com"
+    },
+    suspended: {
+      title: "Subscription suspended",
+      body: "Your subscription is currently suspended, likely due to a payment issue. Please update your payment method in Microsoft 365 Admin Center.",
+      link: "https://admin.microsoft.com"
+    },
+    server_error: {
+      title: "License check unavailable",
+      body: "We could not verify your subscription right now. Please try again later or contact support.",
+      link: null
+    }
+  };
+
+  const m = messages[reason] || messages["no_subscription"];
+
+  const gate = document.createElement("div");
+  gate.style.cssText = [
+    "position:fixed", "inset:0", "z-index:99999",
+    "background:rgba(243,242,251,0.97)", "backdrop-filter:blur(8px)",
+    "display:flex", "align-items:center", "justify-content:center",
+    "padding:24px"
+  ].join(";");
+
+  const card = document.createElement("div");
+  card.style.cssText = [
+    "background:#fff", "border-radius:20px", "padding:36px 32px",
+    "max-width:360px", "width:100%", "text-align:center",
+    "box-shadow:0 8px 40px rgba(108,98,212,0.16)"
+  ].join(";");
+
+  const icon = document.createElement("div");
+  icon.style.cssText = "font-size:44px;margin-bottom:14px";
+  icon.textContent = reason === "suspended" ? "⚠️" : "🔒";
+
+  const h2 = document.createElement("h2");
+  h2.style.cssText = "font-size:18px;font-weight:700;color:#1C1C1E;margin-bottom:10px";
+  h2.textContent = m.title;
+
+  const p = document.createElement("p");
+  p.style.cssText = "font-size:14px;color:#6B6B6B;line-height:1.6;margin-bottom:20px";
+  p.textContent = m.body;
+
+  card.appendChild(icon);
+  card.appendChild(h2);
+  card.appendChild(p);
+
+  if (m.link) {
+    const btn = document.createElement("a");
+    btn.href = m.link;
+    btn.target = "_blank";
+    btn.rel = "noopener noreferrer";
+    btn.style.cssText = [
+      "display:inline-block",
+      "background:linear-gradient(135deg,#6C62D4,#534AB7)",
+      "color:#fff", "border-radius:99px", "padding:10px 28px",
+      "font-size:14px", "font-weight:600", "text-decoration:none"
+    ].join(";");
+    btn.textContent = reason === "suspended" ? "Manage subscription" : "Get a subscription";
+    card.appendChild(btn);
+  }
+
+  gate.appendChild(card);
+  document.body.appendChild(gate);
+}
+// ──────────────────────────────────────────────────────────────────────────
+
 Office.onReady((info) => {
   if (info.host === Office.HostType.Outlook) {
     log("Office.js ready. Host: Outlook.", "info");
+
+    // License check (runs silently; enforcement controlled by LICENSE_ENFORCEMENT flag)
+    checkLicense().catch(err => log("License check failed (non-fatal): " + err.message, "warn"));
 
     // C1 / C2: Check for Exchange Online mailbox — restUrl is null for IMAP/Gmail-only accounts
     const restUrl = Office.context.mailbox.restUrl;
@@ -3084,7 +3259,7 @@ function getAccessToken() {
 
 function getTokenViaDialog() {
   return new Promise((resolve, reject) => {
-    const dialogUrl = "https://leighton-grey.github.io/mail-merge-addin/auth-dialog.html?v=5";
+    const dialogUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1) + 'auth-dialog.html?v=5';
     Office.context.ui.displayDialogAsync(
       dialogUrl,
       { height: 60, width: 35, promptBeforeOpen: false },

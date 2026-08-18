@@ -7,7 +7,7 @@
   xsi:type="MailApp">
 
   <Id>b7f3d21e-4ac1-4e8b-9c7f-cd3548bfd910</Id>
-  <Version>2.6.0</Version>
+  <Version>2.6.1</Version>
   <ProviderName>Grey8Ghost</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Mail Merge Dev"/>
@@ -19,7 +19,8 @@
   <SupportUrl DefaultValue="https://grey8ghost.github.io/Mail-Merge"/>
 
   <AppDomains>
-    <AppDomain>grey8ghost.github.io</AppDomain>
+    <AppDomain>https://grey8ghost.github.io</AppDomain>
+    <AppDomain>https://leighton-grey.github.io</AppDomain>
   </AppDomains>
 
   <Hosts>

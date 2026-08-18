@@ -376,9 +376,9 @@
   <script>
     Office.initialize = function() {};
 
-    const CLIENT_ID    = "d06ae3cf-a7da-4264-b20e-ab8d70c06977";
-    const TENANT_ID    = "04ca7ab1-691d-45a2-928f-574b3e3300a0";
-    const REDIRECT_URI = "https://leighton-grey.github.io/mail-merge-addin/auth-dialog.html";
+    const CLIENT_ID    = "f2c56ad8-181d-4971-9c84-db2070b0514f";
+    const TENANT_ID    = "common";
+    const REDIRECT_URI = window.location.href.split('?')[0];
     const SCOPES       = ["https://graph.microsoft.com/Mail.Send", "https://graph.microsoft.com/User.Read"];
 
     function sendToParent(data) {
