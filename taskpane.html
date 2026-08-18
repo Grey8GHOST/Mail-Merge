@@ -97,11 +97,11 @@
       <!-- Recipients source switcher -->
       <div class="section" style="padding-bottom:6px;">
         <label class="label" style="margin-bottom:6px;">Add recipients another way</label>
-        <div class="csv-upload-row" style="flex-wrap:wrap;gap:6px;">
+        <div class="alt-recipients-grid">
           <button class="btn-secondary" id="quickModeBtn" title="Type or paste email addresses directly — no spreadsheet needed">📧 Type emails</button>
           <button class="btn-secondary" id="syncRecipientsBtn" title="Pull in the addresses already in Outlook's To field">📥 From To field</button>
           <button class="btn-secondary" id="importContactsBtn" title="Pick recipients from your Outlook contacts">👤 From Contacts</button>
-          <span id="recipientCount" class="count-badge" style="margin-left:auto;"></span>
+          <div class="alt-recipients-count" id="recipientCount">0 recipients</div>
         </div>
       </div>
 

@@ -111,10 +111,7 @@ body {
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   font-size: 13px;
   line-height: 1.5;
-  /* Purple header colour at the top so the rounded-bottom header corners
-     blend cleanly; rest of page uses the standard lavender-grey wash  */
-  background: linear-gradient(to bottom, #3D35A0 56px, var(--bg) 56px);
-  background-attachment: local;
+  background: var(--bg);
   color: var(--text);
   /* Column flex so the scrollable content area and sticky footer
      stack vertically and footer always stays at the bottom.     */
@@ -631,6 +628,33 @@ body {
    Small pill showing a numeric count (e.g. "12 recipients").
    Used next to section headers to give at-a-glance totals.
    ─────────────────────────────────────────────────────────────── */
+/* 2×2 grid for the "Add recipients another way" button group.
+   All four cells are equal width; the count cell acts as the 4th slot. */
+.alt-recipients-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.alt-recipients-grid .btn-secondary {
+  width: 100%;
+  justify-content: center;
+}
+
+.alt-recipients-count {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-border);
+  border-radius: 99px;
+  padding: 2px 10px;
+  white-space: nowrap;
+}
+
 .count-badge {
   font-size: 11px;
   font-weight: 600;

@@ -954,7 +954,7 @@ function updateQuickModeCSV() {
     parsedRecipients = [];
     selectedRowIndices = null;
     const countEl = document.getElementById("recipientCount");
-    if (countEl) countEl.textContent = "";
+    if (countEl) countEl.textContent = "0 recipients";
     renderPreviewTable([]);
     return;
   }
@@ -2611,7 +2611,7 @@ function parseAndPreview() {
   addTagToBar("{{unsubscribe_link}}", "smart");
 
   document.getElementById("recipientCount").textContent =
-    `${mappedRows.length} recipient${mappedRows.length !== 1 ? "s" : ""} loaded`;
+    `${mappedRows.length} recipient${mappedRows.length !== 1 ? "s" : ""}`;
 
   populateFilterSortBar(Object.keys(mappedRows[0] || {}).filter(k => !k.startsWith("_")));
   renderPreviewTable(parsedRecipients);
@@ -4397,7 +4397,7 @@ async function handleMergeClick() {
     lsRemove(LS_KEY_CSV);
     document.getElementById("csvInput").value = "";
     parsedRecipients = [];
-    document.getElementById("recipientCount").textContent = "";
+    document.getElementById("recipientCount").textContent = "0 recipients";
     document.getElementById("previewTable").classList.add("hidden");
     log("CSV cleared from local storage after successful send.", "info");
   }
@@ -5568,7 +5568,7 @@ function saveEditTableChanges() {
 function refreshAfterTableEdit() {
   const headers = editTableHeaders.slice();
   document.getElementById("recipientCount").textContent =
-    parsedRecipients.length + ' recipient' + (parsedRecipients.length !== 1 ? 's' : '') + ' loaded';
+    parsedRecipients.length + ' recipient' + (parsedRecipients.length !== 1 ? 's' : '');
   const testRowSel = document.getElementById("testRowSelect");
   if (testRowSel) {
     testRowSel.innerHTML = parsedRecipients.map(function(r, i) {
