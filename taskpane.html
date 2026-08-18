@@ -129,7 +129,6 @@
           <div class="csv-drop-hint">Drop CSV or Excel file here</div>
         </div>
         <div class="csv-actions">
-          <button class="btn-secondary" id="previewBtn">Preview</button>
           <button class="btn-secondary" id="mapFieldsBtn" style="display:none;">⇄ Map fields</button>
           <span class="hint csv-col-hint" style="flex:1;margin:0;font-size:10px;">
             Required: <code>email</code> <code>first_name</code> <code>last_name</code>.
@@ -321,8 +320,10 @@
         <label class="label">Templates</label>
         <div class="template-row">
           <input type="text" id="templateNameInput" class="input input-inline" placeholder="Template name" />
+          <select id="templateSelect" class="select-inline" style="flex:1;"></select>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:6px;">
           <button class="btn-secondary" id="saveTemplateBtn">Save</button>
-          <select id="templateSelect" class="select-inline"></select>
           <button class="btn-secondary" id="deleteTemplateBtn" disabled>Delete</button>
         </div>
         <div style="display:flex;gap:6px;margin-top:6px;">
